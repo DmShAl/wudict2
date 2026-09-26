@@ -398,8 +398,8 @@ House style lives in the `internal/logx` package doc and is enforced by keeping 
 ## 6e. wudict markdown (D153) — specified, not implemented
 
 - `.wudict.md`: one UTF-8 markdown file per dictionary, read as a format (id `wmd`) and written by `wudict dump -format md|markdown`. Normative spec: `docs/WUDICT-MARKDOWN.md`; canonical examples in `docs/wudict-markdown/examples/`.
-- Structure is a line scan (`# title`, `## headword`, `key: value` fields: `alias:`, `see:`); bodies are CommonMark + raw HTML + pandoc attributes/spans/divs, sup/sub, strikeout, GFM tables, `{=html}` fences, `[[wikilinks]]` → `entry://`, DenDen ruby.
-- The writer maps HTML to the leanest markdown and verifies each block by re-rendering (equivalence N); anything that does not round-trip stays raw HTML. Invariants P1–P3 (spec §9).
+- Structure is a line-local scan (`# title`, `## headword` — nothing hides a `## ` line — and `key: value` fields: `alias:`, `see:`); bodies are CommonMark + raw HTML + pandoc attributes (spans, divs, block attribute lines), `{-}` bare paragraphs, sup/sub, strikeout, GFM tables, `{=html}` fences, `[[wikilinks]]` → `entry://` (only `%`, `#` and a leading `@` percent-encoded), DenDen ruby.
+- The writer maps HTML to the leanest markdown — markdown blocks, HTML tags wrapped around markdown, or a raw fence — and verifies every choice by reading it back (equivalence N); what cannot be verified stays raw and is reported. Invariants P1–P3 (spec §9).
 
 ## 7. Non-goals (v1)
 Writing/exporting formats other than wudict markdown (D153, the one sanctioned writer); entry editing; draego's `.db` as input (one-off migration script if ever needed); EPWING/etc. (BGL moved *into* scope in P10.)
