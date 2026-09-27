@@ -5,7 +5,8 @@ byte-identical, in `docs/wudict-markdown/examples/`.
 
 ## 0. Card
 
-- One UTF-8 file `<stem>.wudict.md` = one dictionary. Line 1 `# Title`; each `## headword` line starts an entry.
+- One UTF-8 file `<stem>.wudict.md` = one dictionary; `.wudict.md.gz` and a `.wudict.zip` bundle with its resources
+  are the packaged forms (§2.1). Line 1 `# Title`; each `## headword` line starts an entry.
   Nothing else is structure: a `## ` line always starts an entry, even inside a code block.
 - `key: value` lines directly under a heading are **fields**. Level 1: `wudict: 1` (first, required), `from`,
   `to`, any other key = header field. Level 2: `alias:` (extra search form, repeatable), `see:` (redirect).
@@ -67,6 +68,41 @@ see: run
 - **R2.3** File name `<stem>.wudict.md`. Resources live in `<stem>.wudict.files/` (a folder) or
   `<stem>.wudict.files.zip`, the **container**. Resource references are resolved by R5.20.
 - **R2.4** Writers end the file with exactly one LF and emit no trailing WS on any line outside fenced content.
+
+### 2.1 Packaging
+
+Packaging wraps the file; it never changes it. Every rule of this document, and the invariants of §9, apply to the
+markdown after unpacking. Compressed bytes are not part of P1 or P2.
+
+- **R2.5** A dictionary is stored in one of four forms:
+
+  | Form | Content | Resource container |
+  |---|---|---|
+  | `<stem>.wudict.md` | the file itself — **canonical** | R2.3, next to it |
+  | `<stem>.wudict.md.gz` | the file, gzip-compressed (RFC 1952; several members are read as their concatenation) | R2.3, next to it, same stem |
+  | `<stem>.wudict.md.dz` | the file, dictzip-compressed — a gzip file, read as gzip | R2.3, next to it, same stem |
+  | `<stem>.wudict.zip` | a **bundle**: a zip archive holding the file and its resources | `<s>.wudict.files/` inside the archive |
+
+  Readers MUST read the plain form and SHOULD read the other three. No other compression or archive format belongs
+  to version 1.
+- **R2.6** A bundle's root holds exactly one entry named `<s>.wudict.md`, plain, and optionally the folder
+  `<s>.wudict.files/`. `<s>` need not equal the archive's stem.
+  - Readers ignore entries whose first path segment is `__MACOSX` or starts with `.`.
+  - Any other entry, a second `*.wudict.md`, or no `*.wudict.md` → E-archive.
+- **R2.7** Archive safety. Any of the following → E-archive:
+  - a compressed file or archive that cannot be decoded;
+  - a zip entry using a method other than stored (0) or deflate (8), or encrypted;
+  - an entry name that is absolute, has a drive letter, contains a `..` segment or a `\`, or is not valid UTF-8;
+  - a symbolic-link entry;
+  - decompressed size or entry count beyond the reader's limits. Readers MUST bound both; the limits are
+    implementation-defined.
+
+  E-archive is reported before the structure scan starts.
+- **R2.8** Writers produce the plain form unless compression is requested, and never write `.dz`.
+  - A `.gz` has mtime 0, no file name and no comment.
+  - A bundle lists `<s>.wudict.md` first, then the resources in code-point order of their names. Every entry has
+    the timestamp 1980-01-01 00:00:00 and no extra fields; the markdown is deflated.
+  - With these rules, packaging adds no nondeterminism to P3.
 
 ## 3. Structure
 
@@ -631,6 +667,7 @@ Errors stop the reader and report the position (§1). Warnings continue as state
 |---|---|---|
 | E-struct | R3.2 | missing or empty title |
 | E-version | R4.2, R4.7 | `wudict` missing, not first, malformed, or unsupported major |
+| E-archive | R2.6, R2.7 | undecodable compressed file or archive, bundle layout violated, unsafe or unsupported entry, limits exceeded |
 | W-utf8 | R2.2 | invalid UTF-8 or NUL → U+FFFD |
 | W-struct | R3.3, R3.4, R3.9 | empty headword; `# ` line in a body; entry line ending an open code fence; body ending in an open comment |
 | W-field | R4.1, R4.4, R4.5, R4.7 | empty value, repeated singleton, unknown or reserved key → ignored; near-miss field |
@@ -732,6 +769,10 @@ V41 R   [x]{title="C:\dir"} [x]{#café} [x]{Lang=fr lang=en}
         <span title="C:\dir">x</span> <span id="café">x</span> <span lang="en">x</span>
 V42 W   <pre><code>## x⏎</code></pre>
         ␠```⏎␠## x⏎␠```                 (␠ = SP: shifted fence, R8.19)
+V43 R   D.wudict.zip = { P.wudict.md, P.wudict.files/a.mp3, __MACOSX/._P.wudict.md }
+        dictionary from P.wudict.md; [s](a.mp3) resolves to P.wudict.files/a.mp3 inside the archive
+V44 R   D.wudict.zip = { P.wudict.md, Q.wudict.md }  ·  { P.wudict.md, P.wudict.files/../x }  ·  { P.wudict.md, notes.txt }
+        E-archive  ·  E-archive  ·  E-archive
 ```
 
 ## 12. Examples
@@ -1048,6 +1089,8 @@ wudict: 1
 - **R13.4** Nesting depth per R5.13. Writers emit C for content nested deeper than 32.
 - **R13.5** Resource resolution never leaves the container (R5.20); zip entry names are matched, never extracted
   to paths.
+- **R13.6** Decompression is bounded and archive entries are validated before use (R2.7): gzip and zip bombs,
+  path traversal and symlink entries end in E-archive.
 
 ## 14. Residual limits and deferred features
 
@@ -1061,7 +1104,8 @@ Every residual limit below is detected: the writer reports W-export, or verifica
 | Raw-text element content with a `## ` line and a TAB-initial line | W-export |
 | A literal backslash-pipe in a table cell | the table is C |
 
-**Deferred:** compression, multi-file dictionaries, alias→fragment landing, definition lists, attributes on list
+**Not in version 1:** compression formats other than gzip, dictzip and zip (7z, xz, zstd, bzip2) — decompress
+first. **Deferred:** multi-file dictionaries, alias→fragment landing, definition lists, attributes on list
 items (wrappers cover them), a `check` command.
 
 ## Appendix A. Implementer notes (informative; verified 2026-09-26 against the versions named)
