@@ -222,7 +222,10 @@ func TestCSVNeverBword(t *testing.T) {
 		want string
 	}{
 		{"redirect", dict.Entry{Headwords: []string{"a"}, LinkTo: "b c"}, `<a href="entry://b c">b c</a>`},
-		{"redirect to sub-entry", dict.Entry{Headwords: []string{"a"}, LinkTo: "@sub"}, `<a href="entry:@sub">@sub</a>`},
+		// a redirect names a headword: a leading "@" is encoded so the host
+		// looks it up instead of inlining an MDict sub-entry (R5.16)
+		{"redirect to an @ headword", dict.Entry{Headwords: []string{"a"}, LinkTo: "@sub"}, `<a href="entry://%40sub">@sub</a>`},
+		{"redirect to C#", dict.Entry{Headwords: []string{"a"}, LinkTo: "C#"}, `<a href="entry://C%23">C#</a>`},
 		{"redirect escaped", dict.Entry{Headwords: []string{"a"}, LinkTo: `x"<y`}, `<a href="entry://x&#34;&lt;y">x&#34;&lt;y</a>`},
 		{"source bword://", dict.Entry{Headwords: []string{"a"}, Body: `<a href="bword://run#s2">run</a>`, Kind: dict.BodyHTML},
 			`<a href="entry://run#s2">run</a>`},

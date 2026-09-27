@@ -37,6 +37,7 @@ func TestTransformBody(t *testing.T) {
 		{`[ex]sample[/ex]`, `<span class="wu-ex">sample</span>`},
 		{`a [ref]target[/ref]`, `a <a href="entry://target">target</a>`},
 		{`<<other>>`, `<a href="entry://other">other</a>`},
+		{`[ref]C#[/ref] <<100%>>`, `<a href="entry://C%23">C#</a> <a href="entry://100%25">100%</a>`},
 		{`[url]example.com[/url]`, `<a href="http://example.com">example.com</a>`},
 		{`[p]adj.[/p]`, `<span class="wu-p">adj.</span>`},
 		{`x {{comment}} y`, `x  y`},

@@ -186,7 +186,7 @@ func readAll(r dict.Reader, row func([]string, string) error) error {
 			// A pure redirect has no body of its own, so it becomes an
 			// entry:// anchor and the pointer survives the conversion instead
 			// of becoming a dangling headword.
-			href, _ := htmlref.CanonRef("entry://" + e.LinkTo)
+			href := htmlref.EntryHref(e.LinkTo)
 			esc := html.EscapeString(e.LinkTo)
 			if err := row(e.Headwords, `<a href="`+html.EscapeString(href)+`">`+esc+`</a>`); err != nil {
 				return err

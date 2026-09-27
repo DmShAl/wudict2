@@ -68,7 +68,10 @@ func TestEntryRef(t *testing.T) {
 		{"old scheme image", "../I/p.png", false, "../I/p.png"},
 		{"old scheme layout", "../-/s.css", false, "../-/s.css"},
 		{"old scheme sibling", "cat", false, "entry://cat"},
-		{"bad escape is left as written", "a%zz", true, "entry://a%zz"},
+		// a bad escape is kept as a literal "%", which the link then encodes
+		{"bad escape is a literal percent", "a%zz", true, "entry://a%25zz"},
+		{"encoded hash stays in the headword", "C%23", true, "entry://C%23"},
+		{"leading at is a headword, not a sub-entry", "%40home", true, "entry://%40home"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

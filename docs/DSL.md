@@ -407,7 +407,7 @@ dictionary and no other marker.
 	[m1][p]См. тж.[/p] [ref dict="Справочник реставратора (Ru-Ru)"]адгезивы в реставрации[/ref][/m]
 ```
 
-What we emit:
+What we emit (the target is percent-encoded only where it would be misread: `%`, `#`, controls and a leading `@`, so `[ref]C#[/ref]` gives `href="entry://C%23"`):
 
 | Form | HTML |
 | --- | --- |

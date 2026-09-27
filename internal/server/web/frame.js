@@ -358,6 +358,8 @@
 	// this works by string position and never touches URL().
 	var REF_SCHEME = /^(?:(?:bword|entry):(?:\/\/)?|[dx]:)/i;
 	function decodeRef(s) { try { return decodeURIComponent(s); } catch (_) { return s; } }
+	// spaces and tabs only: a headword may begin or end with U+3000 or NBSP
+	function refTrim(s) { return s.replace(/^[ \t]+|[ \t]+$/g, ""); }
 	function parseRef(href) {
 		var m = REF_SCHEME.exec(href || "");
 		if (!m) return null;
@@ -365,9 +367,10 @@
 		var rest = href.slice(m[0].length), frag = "";
 		var h = rest.indexOf("#");
 		if (h >= 0) { frag = rest.slice(h + 1); rest = rest.slice(0, h); }
-		var word = decodeRef(rest).trim();
+		var raw = refTrim(rest), word = refTrim(decodeRef(rest));
 		frag = decodeRef(frag);
-		if (word.charAt(0) === "@" && word.length > 1) return { kind: "sub", word: word, frag: frag };
+		// "@" is tested undecoded: a real headword "@home" arrives as %40home
+		if (raw.charAt(0) === "@" && raw.length > 1) return { kind: "sub", word: word, frag: frag };
 		return { kind: word ? "lookup" : "anchor", word: word, frag: frag };
 	}
 	// A lookup-scheme link carrying only a fragment (`entry://#HistAI`) is the

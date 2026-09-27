@@ -542,7 +542,14 @@ proprietary scheme (BGL glossaries, Babylon Builder, late 1990s; no public
 spec), still accepted because a dictionary's own script may build one. After the scheme, split at the
 **first literal `#`** — a `#` inside a headword arrives percent-encoded, so
 decoding before splitting would promote it to a delimiter — then
-percent-decode each half.
+percent-decode each half (all or nothing: a half that does not decode is kept
+as written), and trim the headword of **spaces and tabs only** (a headword may
+begin or end with U+3000 or NBSP, which `String.prototype.trim` would eat).
+
+wudict percent-encodes exactly four things in a headword it links to: `%`,
+`#`, control characters, and a **leading `@`**. That last one is why the
+**sub** test runs on the target **before decoding**: `entry:@Examples` is a
+section of this entry, while `entry://%40home` is the headword `@home`.
 
 | href | kind | what it means |
 |---|---|---|
@@ -550,6 +557,7 @@ percent-decode each half.
 | `entry:run` · `bword://run` · `d:run` · `x:run` | **lookup** | same thing, other spellings |
 | `defendant` (bare, no scheme) | **lookup** | slob/OALD write cross-references bare |
 | `entry:@Examples` | **sub** | a *section of this entry*, not a word |
+| `entry://%40home` · `entry://C%23` | **lookup** | the headwords `@home` and `C#` |
 | `entry://#sense2` · `#sense2` | **anchor** | a place in the article on screen |
 | `https://…` | external | the open web |
 | `…/x.mp3` | audio | §10 |

@@ -3919,10 +3919,15 @@ function playAudio(url){
      "anchor"  no headword: a #fragment in the article being read — the
                article's own table of contents, not a cross-reference
      "sub"     "@name", an article's own expandable section stored as a
-               headword (MDict convention, D26) — inlined, never searched
+               headword (MDict convention, D26) — inlined, never searched.
+               Decided on the UNDECODED target: a real headword that starts
+               with "@" arrives as "%40…" and stays a lookup.
+   The target is trimmed of spaces and tabs only: a headword may begin or end
+   with any other blank (U+3000, NBSP), and String.trim() would eat it.
    null when the href is not a reference at all. */
 const REF_SCHEME=/^(?:(?:bword|entry):(?:\/\/)?|[dx]:)/i;
 function decodeRef(s){try{return decodeURIComponent(s)}catch(_){return s}}
+function refTrim(s){return s.replace(/^[ \t]+|[ \t]+$/g,"")}
 function parseRef(href){
   const m=REF_SCHEME.exec(href||"");
   if(!m)return null;
@@ -3932,9 +3937,9 @@ function parseRef(href){
   let rest=href.slice(m[0].length),frag="";
   const h=rest.indexOf("#");
   if(h>=0){frag=rest.slice(h+1);rest=rest.slice(0,h)}
-  const word=decodeRef(rest).trim();
+  const raw=refTrim(rest),word=refTrim(decodeRef(rest));
   frag=decodeRef(frag);
-  if(word.charAt(0)==="@"&&word.length>1)return{kind:"sub",word,frag};
+  if(raw.charAt(0)==="@"&&raw.length>1)return{kind:"sub",word,frag};
   return{kind:word?"lookup":"anchor",word,frag};
 }
 function anchorTarget(root,frag){

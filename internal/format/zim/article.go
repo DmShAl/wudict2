@@ -128,7 +128,7 @@ func entryRef(ref string, newNS bool) string {
 	// Paths spell a space as '_'; the headword a user (or another dictionary)
 	// would recognise does not.
 	path = strings.ReplaceAll(path, "_", " ")
-	return "entry://" + path + frag
+	return htmlref.EntryHref(path) + frag
 }
 
 // trimRelative strips the leading "./", "../" and "/" segments a stored
