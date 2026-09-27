@@ -2424,7 +2424,7 @@ function hidePanel(){
   $("panel").classList.remove("show");
   const was=panelSnap;panelSnap=null;
   /* Only an "All dictionaries" answer is built from the enabled set. A view
-     scoped to one dictionary — by the selector, or one-shot by a bword:// link
+     scoped to one dictionary — by the selector, or one-shot by an entry:// link
      (lastScope) — reads that dictionary whether or not it is enabled, so the
      panel cannot have changed it; and re-running here would carry no scopeOnce
      and silently widen a cross-reference view back to "all". */
@@ -3495,7 +3495,7 @@ function renderSlot(box,h,mode,q,perDict,group){
   }
   det.open=expandAll;
   det.appendChild(dl);box.appendChild(det);
-  // A `bword://Word#frag` link: now that the article is in the document, put
+  // An `entry://Word#frag` link: now that the article is in the document, put
   // the fragment on screen. Shadow-DOM articles can be measured immediately
   // (next frame, once laid out); iframe ones jump themselves — frameDoc has
   // already been handed the fragment below.
@@ -3852,7 +3852,7 @@ document.addEventListener("keydown",e=>{
                      clause, and must be tidied into something lookup-shaped.
 
    These used to be one function carrying lookupSelection's tidying, so
-   `bword://Artificial Intelligence Notes#note-1` was cut at the first space
+   `entry://Artificial Intelligence Notes#note-1` was cut at the first space
    and searched for "Artificial". A cleaner that is right for one caller is
    silent corruption for the other; the fix is two functions, not a smarter
    regex. */
@@ -3891,17 +3891,20 @@ function playAudio(url){
   if(p&&p.catch)p.catch(err=>{console.warn("audio play failed:",url,err);setStatus("⚠ could not play audio")});
 }
 /* ── Dictionary references ────────────────────────────────────────────
-   `bword://Artificial Intelligence Notes#note-1` IS NOT A URL, and must never
+   `entry://Artificial Intelligence Notes#note-1` IS NOT A URL, and must never
    be handed to one. The `//` promises an authority component, and an authority
    may not contain spaces — while headwords contain spaces, apostrophes,
    ampersands and question marks all day long. `new URL()` (or anything that
    normalises an authority) mangles them silently. So this parses by string
-   position and nothing else. It is also why the server rewrites `bword://@…`
-   to the slash-less `bword:@…` before it ever reaches us: "@" is the userinfo
+   position and nothing else. It is also why the server rewrites `entry://@…`
+   to the slash-less `entry:@…` before it ever reaches us: "@" is the userinfo
    delimiter, and URL normalisation eats everything before it (rewrite.go).
 
    Accepted forms, all equivalent:
-     bword://word   bword:word   entry://word   entry:word   d:word   x:word
+     entry://word   entry:word   bword://word   bword:word   d:word   x:word
+   `entry://` is the one wudict writes; the server respells a dictionary's
+   `bword:` links (Babylon's proprietary scheme) before they reach us, and
+   the parser keeps accepting them for links a dictionary's own script builds.
    The slash-less spelling is what GoldenDict also accepts and several MDX
    dictionaries emit.
 
@@ -4256,7 +4259,7 @@ document.addEventListener("click",e=>{
   else if(a){
     const href=a.getAttribute("href")||"";
     // A dictionary reference outranks the extension, as it does in the chain
-    // below: `bword://…mp3` names a headword, not a file.
+    // below: `entry://…mp3` names a headword, not a file.
     if(parseRef(href))return;
     const dictID=path.find(el=>el.classList?.contains("article"))?.dataset.dict;
     if(/\.(mp3|ogg|wav|spx|m4a)(\?|#|$)/i.test(href))
@@ -4327,7 +4330,7 @@ addEventListener("scroll",()=>{
 let navRecord="replace"; // how the NEXT doSearch should record itself
 /* One-shot state consumed by the next doSearch, same idiom as navRecord.
 
-   scopeOnce is the dictionary a cross-reference came FROM. A `bword://` link
+   scopeOnce is the dictionary a cross-reference came FROM. An `entry://` link
    inside an article is the dictionary talking to itself — the author wrote it
    pointing at their own entry — so searching all 105 dictionaries for it is
    both wasteful and wrong: it buries the intended article among namesakes from

@@ -40,18 +40,18 @@ func TestArticleBody(t *testing.T) {
 	}
 }
 
-func TestBwordRef(t *testing.T) {
+func TestEntryRef(t *testing.T) {
 	cases := []struct {
 		name  string
 		ref   string
 		newNS bool
 		want  string
 	}{
-		{"sibling path", "cat", true, "bword://cat"},
-		{"percent-encoded", "odrasl%C4%83", true, "bword://odraslă"},
-		{"underscore is a space", "New_York", true, "bword://New York"},
-		{"leading ./", "./cat", true, "bword://cat"},
-		{"fragment is kept", "cat#Etymology", true, "bword://cat#Etymology"},
+		{"sibling path", "cat", true, "entry://cat"},
+		{"percent-encoded", "odrasl%C4%83", true, "entry://odraslă"},
+		{"underscore is a space", "New_York", true, "entry://New York"},
+		{"leading ./", "./cat", true, "entry://cat"},
+		{"fragment is kept", "cat#Etymology", true, "entry://cat#Etymology"},
 		{"fragment only", "#Etymology", true, "#Etymology"},
 		{"absolute", "https://example.org/x", true, "https://example.org/x"},
 		{"protocol relative", "//example.org/x", true, "//example.org/x"},
@@ -64,16 +64,16 @@ func TestBwordRef(t *testing.T) {
 		{"new scheme keeps its namespace", "../C/cat", true, "../C/cat"},
 		// Pre-6.1: the namespace segment survives the relative trim, and only
 		// the article namespace is a lookup.
-		{"old scheme article", "../A/cat", false, "bword://cat"},
+		{"old scheme article", "../A/cat", false, "entry://cat"},
 		{"old scheme image", "../I/p.png", false, "../I/p.png"},
 		{"old scheme layout", "../-/s.css", false, "../-/s.css"},
-		{"old scheme sibling", "cat", false, "bword://cat"},
-		{"bad escape is left as written", "a%zz", true, "bword://a%zz"},
+		{"old scheme sibling", "cat", false, "entry://cat"},
+		{"bad escape is left as written", "a%zz", true, "entry://a%zz"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := bwordRef(tc.ref, tc.newNS); got != tc.want {
-				t.Errorf("bwordRef(%q, %v) = %q, want %q", tc.ref, tc.newNS, got, tc.want)
+			if got := entryRef(tc.ref, tc.newNS); got != tc.want {
+				t.Errorf("entryRef(%q, %v) = %q, want %q", tc.ref, tc.newNS, got, tc.want)
 			}
 		})
 	}

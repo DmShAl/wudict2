@@ -16,6 +16,7 @@ import (
 	"strings"
 
 	"github.com/wuweidict/wudict/internal/dict"
+	"github.com/wuweidict/wudict/internal/htmlref"
 	"github.com/wuweidict/wudict/internal/logx"
 	"github.com/wuweidict/wudict/internal/resource"
 	"github.com/wuweidict/wudict/internal/store"
@@ -28,6 +29,10 @@ import (
 // which is the directory name pyglossary's CSV writer derives and its reader
 // looks for, so a dump round-trips through `pyglossary dict.csv out.xyz`
 // without being told anything about it.
+//
+// Cross-references are written in their canonical spelling, `entry://`: a
+// source's `bword:` links are respelled on the way out (htmlref.CanonRef), never
+// copied, whether the body comes from a format Reader or a prepared text.db.
 //
 // The point is an exit door: every dictionary wudict can read becomes a format
 // forty other tools can read, using their converter rather than a matrix of
@@ -115,7 +120,7 @@ func dumpEntries(src, outDir, csvPath string) (int, error) {
 		meta, closeSrc = s.Meta(), s.Close
 		each = func(row func([]string, string) error) error {
 			return s.EachEntry(func(headword string, alts []string, body string) error {
-				return row(append([]string{headword}, alts...), body)
+				return row(append([]string{headword}, alts...), htmlref.CanonLinks(body))
 			})
 		}
 	} else {
@@ -167,7 +172,7 @@ func dumpEntries(src, outDir, csvPath string) (int, error) {
 }
 
 // readAll drains a format Reader into row(), rendering each body exactly as an
-// ingest would.
+// ingest would, with its cross-references in the canonical `entry://` spelling.
 func readAll(r dict.Reader, row func([]string, string) error) error {
 	for {
 		e, err := r.Next()
@@ -178,12 +183,12 @@ func readAll(r dict.Reader, row func([]string, string) error) error {
 			return err
 		}
 		if e.LinkTo != "" {
-			// A pure redirect has no body of its own. bword: is the
-			// cross-reference scheme Babylon and GoldenDict use and every
-			// importer understands, so the pointer survives the conversion
-			// instead of becoming a dangling headword.
+			// A pure redirect has no body of its own, so it becomes an
+			// entry:// anchor and the pointer survives the conversion instead
+			// of becoming a dangling headword.
+			href, _ := htmlref.CanonRef("entry://" + e.LinkTo)
 			esc := html.EscapeString(e.LinkTo)
-			if err := row(e.Headwords, `<a href="bword://`+esc+`">`+esc+`</a>`); err != nil {
+			if err := row(e.Headwords, `<a href="`+html.EscapeString(href)+`">`+esc+`</a>`); err != nil {
 				return err
 			}
 			continue
@@ -192,7 +197,7 @@ func readAll(r dict.Reader, row func([]string, string) error) error {
 		if err != nil {
 			return fmt.Errorf("%s: %w", firstWord(e.Headwords), err)
 		}
-		if err := row(e.Headwords, body); err != nil {
+		if err := row(e.Headwords, htmlref.CanonLinks(body)); err != nil {
 			return err
 		}
 	}

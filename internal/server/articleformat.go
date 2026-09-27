@@ -153,7 +153,7 @@ func cleanURL(v, base string) (string, bool) {
 		// being told to rewrite it.
 		return base + t, true
 	}
-	// http(s), the dictionary's own bword:/entry: cross-reference schemes,
+	// http(s), the entry: cross-reference scheme (bword: already respelled),
 	// "#frag", and bare relative headwords all pass through: the client
 	// decides what to do with a link, we only decide it cannot execute.
 	return t, true
@@ -294,9 +294,16 @@ func ParseArticleFormat(s string) (string, error) { return parseFormat(s) }
 // leaves them as they are, which is the honest answer when no server is running
 // to serve them.
 //
-// `raw` returns immediately without rewriting
+// `raw` leaves the bodies as stored except for cross-references, which take
+// their canonical spelling (htmlref.CanonLinks): wudict never emits `bword:`.
 func FormatArticles(d dict.Dictionary, format, base string, rs []dict.Result) {
-	if format == formatRaw || len(rs) == 0 {
+	if format == formatRaw {
+		for i := range rs {
+			rs[i].Body = htmlref.CanonLinks(rs[i].Body)
+		}
+		return
+	}
+	if len(rs) == 0 {
 		return
 	}
 	id := pathID(d.Meta().Path)

@@ -231,7 +231,7 @@ than aborting the operation.
 **Indexed dictionaries vs. source dictoinaries.** A dictionary that has been indexed in the library
 can be dumped either way, and the two differ in one respect: dumping the
 source writes an MDX `@@@LINK` redirect as its own row pointing at
-`bword://target`, while dumping the prepared folder writes it as an alternate
+`entry://target`, while dumping the prepared folder writes it as an alternate
 headword on the target's row, because that is what ingest resolved it into.
 Both are valid and accepted by [pyglossary](https://github.com/ilius/pyglossary).
 

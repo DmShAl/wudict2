@@ -6,7 +6,7 @@
 
 // wudict iframe bridge: runs inside sandboxed article iframes
 // (script-bearing dictionaries). Reports content height, forwards
-// bword:// lookups and double-click word lookups to the app, follows
+// entry:// lookups and double-click word lookups to the app, follows
 // theme changes.
 (function () {
 	"use strict";
@@ -353,7 +353,7 @@
 	});
 
 	// The reference parser, mirroring parseRef in index.html — keep the two in
-	// step. `bword://Some Headword#frag` is NOT a URL: "//" promises an
+	// step. `entry://Some Headword#frag` is NOT a URL: "//" promises an
 	// authority, which cannot hold the spaces that headwords are full of, so
 	// this works by string position and never touches URL().
 	var REF_SCHEME = /^(?:(?:bword|entry):(?:\/\/)?|[dx]:)/i;
@@ -370,7 +370,7 @@
 		if (word.charAt(0) === "@" && word.length > 1) return { kind: "sub", word: word, frag: frag };
 		return { kind: word ? "lookup" : "anchor", word: word, frag: frag };
 	}
-	// A lookup-scheme link carrying only a fragment (`bword://#HistAI`) is the
+	// A lookup-scheme link carrying only a fragment (`entry://#HistAI`) is the
 	// article's own table of contents, not a cross-reference. We cannot scroll
 	// to it here: the iframe is sized to its content and so never scrolls
 	// itself. Report the target's offset and let the page move, where the fixed
@@ -503,7 +503,7 @@
 			// where this renderer and the shadow-DOM one genuinely differ, so
 			// mirroring index.html's exclusion list was bound to get it wrong.
 			//
-			// Propagation is deliberately NOT stopped. Unlike a bword:// link,
+			// Propagation is deliberately NOT stopped. Unlike an entry:// link,
 			// this click belongs to the dictionary — Cambridge's English/American
 			// tabs are jQuery handlers on <a href="#dataset-british"> — and
 			// cancelling the navigation is the only thing they needed from us.

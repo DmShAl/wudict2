@@ -534,19 +534,23 @@ Verified against `parseRef` and the click handlers. Scheme test:
 /^(?:(?:bword|entry):(?:\/\/)?|[dx]:)/i
 ```
 
-So `bword:`, `bword://`, `entry:`, `entry://`, `d:` and `x:` are all the same
-thing, spelled six ways by six repackers. After the scheme, split at the
+So `entry://`, `entry:`, `bword://`, `bword:`, `d:` and `x:` are all the same
+thing, spelled six ways by six repackers. wudict itself only ever sends
+`entry://` (and `entry:@…` for a sub-entry): a dictionary's `bword:` links are
+respelled by the server before they reach a client. `bword:` is Babylon Ltd.'s
+proprietary scheme (BGL glossaries, Babylon Builder, late 1990s; no public
+spec), still accepted because a dictionary's own script may build one. After the scheme, split at the
 **first literal `#`** — a `#` inside a headword arrives percent-encoded, so
 decoding before splitting would promote it to a delimiter — then
 percent-decode each half.
 
 | href | kind | what it means |
 |---|---|---|
-| `bword://run` | **lookup** | another headword |
-| `entry:run` · `d:run` · `x:run` | **lookup** | same thing, other spellings |
+| `entry://run` | **lookup** | another headword |
+| `entry:run` · `bword://run` · `d:run` · `x:run` | **lookup** | same thing, other spellings |
 | `defendant` (bare, no scheme) | **lookup** | slob/OALD write cross-references bare |
-| `bword://@Examples` | **sub** | a *section of this entry*, not a word |
-| `bword://#sense2` · `#sense2` | **anchor** | a place in the article on screen |
+| `entry:@Examples` | **sub** | a *section of this entry*, not a word |
+| `entry://#sense2` · `#sense2` | **anchor** | a place in the article on screen |
 | `https://…` | external | the open web |
 | `…/x.mp3` | audio | §10 |
 
