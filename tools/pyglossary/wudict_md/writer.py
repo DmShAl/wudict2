@@ -113,7 +113,9 @@ class Writer:
 			if not names:
 				self.nameless += 1
 				continue
-			src = entry.defi if entry.defiFormat == "h" else _text_html(entry.defi)
+			# Readers such as MDict's leave the format "m" (plain) and let the
+			# writer detect HTML, as pyglossary's own writers do.
+			src = entry.defi if entry.detectDefiFormat("m") == "h" else _text_html(entry.defi)
 			try:
 				md = self._body(src)
 			except wumd.CleanError as e:

@@ -35,7 +35,7 @@ __all__ = [
 enable = True
 lname = "wudict_md"
 name = "WudictMarkdown"
-description = "WuWeiDict markdown (.wudict.md)"
+description = "wudict markdown (.wudict.md)"
 # pyglossary matches the last extension, so `.wudict.md` is found as `.md`; a
 # `.md` that is not a WuWeiDict dictionary is refused when it is opened.
 extensions = (".md",)
