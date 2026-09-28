@@ -113,15 +113,6 @@ Operators count only in capitals: `wage not minimum` is three words. A query nev
 
 Each language is a small download (under 2 MB) and is used only for dictionaries in that language: Spanish *sale* → **salir** is never asked of an English dictionary. Untick a language to delete it.
 
-- [index](/browse?dict=wudict-howto)
-
-## wudict panel
-## wudict ☰
-## wudict settings
-## wudict dictionary list
-
-<kbd>☰</kbd> **holds your dictionaries and every setting**. The top row changes how you read; the ![](cog.svg) row changes what wudict does; the list below is your dictionaries, in the order results appear.
-
 **IMPORTANT**
 
 > ❗️ For lemmatization to work, wuDict needs to know the dictionary language! Some dictionary formats such as Babylon (`.bgl`) and Lingvo (`.dsl`) contain data about the headword language, which is sufficient. Dictionary formats like `.mdx` have no language metadata, wuDict infers the language using the following strategy in the given order of priority:
@@ -130,6 +121,15 @@ Each language is a small download (under 2 MB) and is used only for dictionaries
 - if the dictionary **title** contains a valid language code then that is used
 - if the dictionary parent folder is a valid language code such as `es` or `spa` then this will be used as the lemmatization language.
 - if none of the previous checks found a language code then English is used by default, which implies that for English dictionaries you do not need to rename your files or the parent subfolders to match `en` or `eng`.
+
+- [index](/browse?dict=wudict-howto)
+
+## wudict panel
+## wudict ☰
+## wudict settings
+## wudict dictionary list
+
+<kbd>☰</kbd> **holds your dictionaries and every setting**. The top row changes how you read; the ![](cog.svg) row changes what wudict does; the list below is your dictionaries, in the order results appear.
 
 ***
 
