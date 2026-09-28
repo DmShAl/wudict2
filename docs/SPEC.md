@@ -397,9 +397,10 @@ House style lives in the `internal/logx` package doc and is enforced by keeping 
 
 ## 6e. wudict markdown (D154)
 
-- `.wudict.md`, or a plain `.md` whose line 2 is `wudict: <version>`: one UTF-8 markdown file per dictionary, also
-  read as `.wudict.md.gz` or `.wudict.md.dz`. It is read as a format (id `wmd`) and written by
-  `wudict dump -format md -mode clean|html [-compress gz]`. Normative spec: `docs/WUDICT-MARKDOWN.md`.
+- `.wudict.md` or a plain `.md`, either one a dictionary only when its line 2 is `wudict: <version>` (the gate,
+  whatever the name, in folder scans and intake alike): one UTF-8 markdown file per dictionary, also read as
+  `.wudict.md.gz` or `.wudict.md.dz`. It is read as a format (id `wmd`) and written by
+  `wudict dump -format md -mode html|clean [-compress gz]`. Normative spec: `docs/WUDICT-MARKDOWN.md`.
 - Standard CommonMark + GFM tables, parsed by a stock parser.
   - `# title`, `wudict: 1` and `key: value` header lines.
   - Entries are the top-level `##` headings; adjacent `##` lines are one entry (headword, then aliases).

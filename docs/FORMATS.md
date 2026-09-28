@@ -72,9 +72,16 @@ The reference projects cited below (`pyglossary/…`, `mdict-go-web/…`, `draeg
     same pass collects the candidate entry lines, `]:` presence and lines 1-2. Measured: reading back a 1.18 GB
     file peaks at 113 MB.
   - `load.go` — R2.1 decoding of a block; `.gz`/`.dz` suffixes, bounded to 1 GiB decompressed.
-  - `wmd.go` — registration (`.wudict.md[.gz|.dz]`, and `.md` through `dict.RegisterSniffed` + `Sniff`: line 1
-    `# title`, line 2 the `wudict` field), a DSL-style auto-prepared `Dict` whose prepared open never reads the
-    source, and `MediaSources` (`<stem>.files.zip`, `<stem>.files/`, loose files).
+  - `wmd.go` — registration: every spelling (`.wudict.md`, `.md`, `.wudict.md.gz`, `.wudict.md.dz`) through
+    `dict.RegisterSniffed` + `Claim`, so the gate is the same whatever the name (R2.2): line 1 `# title`, line 2
+    the `wudict` field, read from a 4 KiB head (decompressed for `.gz`/`.dz`). A DSL-style auto-prepared `Dict`,
+    and `MediaSources` (`<stem>.files.zip`, `<stem>.files/`, loose files). The gate reads the source's head on
+    every open; the prepared store is then opened without reading the rest.
+  - The gate is `dict`'s, applied everywhere a file becomes a dictionary: `Discover`, `Open`/`OpenReader`
+    (which report the claim's reason for an explicitly named file), `IsDictionaryFile`, and intake through
+    `dict.ClassifyName` → `KindCandidate` + `dict.Claims`: an archive entry's head is read in `intake.Sniff`, a
+    loose file's on disk (`OpenPlain`, `holdsDictionary`, `probeCompanions`), and a download may begin by
+    name alone (`canBegin`) and is settled once it has arrived.
   - `convert.go` — `clean` mode: one walk applying the R6.6 allowlist and R6.7 escaping, then a stock parse
     proving the body cannot split its entry. Fuzzed as a fixed point: converting the stock rendering of its
     output gives the same output.

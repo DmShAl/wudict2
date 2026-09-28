@@ -46,8 +46,10 @@ A small general-purpose English dictionary.
 
 - **R2.1** The file is UTF-8. Readers remove a leading BOM and turn CRLF and lone CR into LF. An invalid UTF-8
   sequence or U+0000 becomes U+FFFD.
-- **R2.2** The file is named `<stem>.wudict.md`. Readers MAY also accept a plain `<stem>.md`. Such a file is a
-  dictionary only when R3.1 holds for it; otherwise it is not a dictionary and is ignored. Writers write
+- **R2.2** The file is named `<stem>.wudict.md` or a plain `<stem>.md` (compressed: R2.4). Whatever its name, a file
+  is a dictionary only when its lines 1-2 are the title and the `wudict` field (R3.1): that field is the gate,
+  and the name only nominates the file. A file that fails the gate is not a dictionary: a reader ignores it where
+  it finds it (a folder, an archive), and reports why when it was asked to open that file. Writers write
   `.wudict.md`.
 - **R2.3** Resources live beside the file, in a folder named like the file with its final `.md` replaced by
   `.files` (`<stem>.wudict.files/`, `<stem>.files/`), or in a zip archive of that name + `.zip`. Relative

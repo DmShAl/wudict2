@@ -5,6 +5,8 @@
 package dict
 
 import (
+	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -372,10 +374,13 @@ func TestSniffedFormat(t *testing.T) {
 	var asked []string
 	RegisterFormat(".strict.sniftest", func(path string) (Dictionary, error) { return fakeDict{}, nil })
 	RegisterSniffed(".sniftest",
-		func(path string) bool {
-			asked = append(asked, filepath.Base(path))
-			b, _ := os.ReadFile(path)
-			return strings.HasPrefix(string(b), "YES")
+		func(name string, head io.Reader) error {
+			asked = append(asked, filepath.Base(name))
+			b, _ := io.ReadAll(head)
+			if !strings.HasPrefix(string(b), "YES") {
+				return errors.New("no YES")
+			}
+			return nil
 		},
 		func(path string) (Dictionary, error) { return fakeDict{}, nil },
 		func(path string) (Reader, error) { return fakeReader{}, nil })
@@ -406,8 +411,8 @@ func TestSniffedFormat(t *testing.T) {
 	if _, err := Open(yes); err != nil {
 		t.Errorf("Open(claimed) = %v", err)
 	}
-	if _, err := Open(no); err == nil {
-		t.Error("Open(unclaimed) succeeded")
+	if _, err := Open(no); err == nil || !strings.Contains(err.Error(), "no YES") {
+		t.Errorf("Open(unclaimed) = %v, want the claim's reason", err)
 	}
 	if _, err := OpenReader(yes); err != nil {
 		t.Errorf("OpenReader(claimed) = %v", err)
@@ -417,6 +422,23 @@ func TestSniffedFormat(t *testing.T) {
 	}
 	if !IsDictionaryFile(yes) || IsDictionaryFile(no) {
 		t.Error("IsDictionaryFile disagrees with the sniff")
+	}
+	// By name, a candidate; by content, settled with Claims (intake's view,
+	// which holds bytes but no path).
+	if k := ClassifyName("x/dict.SNIFTEST"); k != KindCandidate {
+		t.Errorf("ClassifyName = %v, want KindCandidate", k)
+	}
+	if k := ClassifyName("named.strict.sniftest"); k != KindMain {
+		t.Errorf("ClassifyName(strict) = %v, want KindMain", k)
+	}
+	body := func(s string) func() (io.ReadCloser, error) {
+		return func() (io.ReadCloser, error) { return io.NopCloser(strings.NewReader(s)), nil }
+	}
+	if Claims("a.sniftest", body("YES")) != nil || Claims("a.sniftest", body("no")) == nil {
+		t.Error("Claims disagrees with the claim")
+	}
+	if Claims("a.mdx", func() (io.ReadCloser, error) { panic("opened") }) == nil {
+		t.Error("Claims accepted a name no sniffed suffix nominates")
 	}
 	asked = nil
 	if _, err := Open(strict); err != nil {

@@ -364,8 +364,9 @@ func TestCompressed(t *testing.T) {
 	}
 }
 
-// TestSniff: a plain `.md` is claimed only by title + version field (R2.2).
-func TestSniff(t *testing.T) {
+// TestClaim: a file is claimed only by title + version field (R2.2),
+// whatever it is called.
+func TestClaim(t *testing.T) {
 	tests := []struct {
 		name, head string
 		want       bool
@@ -386,21 +387,40 @@ func TestSniff(t *testing.T) {
 		{"level-2 first", "## word\nwudict: 1\n", false},
 		{"title only", "# Notes\n", false},
 		{"empty", "", false},
-		{"title past the head", "# " + strings.Repeat("x", sniffHead) + "\nwudict: 1\n", false},
+		{"title past the head", "# " + strings.Repeat("x", claimHead) + "\nwudict: 1\n", false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			head := tt.head
-			if len(head) > sniffHead {
-				head = head[:sniffHead]
+			if len(head) > claimHead {
+				head = head[:claimHead]
 			}
-			if got := sniff([]byte(head)); got != tt.want {
-				t.Errorf("sniff = %v, want %v", got, tt.want)
+			if err := claim([]byte(head)); (err == nil) != tt.want {
+				t.Errorf("claim = %v, want claimed %v", err, tt.want)
 			}
 		})
 	}
-	if !Sniff(writeTemp(t, "a.md", "# Dict\nwudict: 1\n\n## word\n\ndef\n")) || Sniff(writeTemp(t, "b.md", "# README\n\n## Install\n")) {
-		t.Error("Sniff disagrees with sniff")
+	var gz bytes.Buffer
+	zw := gzip.NewWriter(&gz)
+	zw.Write([]byte("# Dict\nwudict: 1\n"))
+	zw.Close()
+	if err := Claim("d.wudict.md.gz", bytes.NewReader(gz.Bytes())); err != nil {
+		t.Errorf("gzip: %v", err)
+	}
+	if err := Claim("d.wudict.md.gz", strings.NewReader("# Dict\nwudict: 1\n")); err == nil {
+		t.Error("plain text claimed as gzip")
+	}
+	// The gate is the same for every spelling: a `.wudict.md` without the
+	// field is not a dictionary, and its open says why.
+	t.Setenv("WUDICT_DB_DIR", t.TempDir())
+	for _, name := range []string{"n.wudict.md", "n.md"} {
+		p := writeTemp(t, name, "# Dict\n\n## word\n\ndef\n")
+		if dict.IsDictionaryFile(p) {
+			t.Errorf("%s without the field is a dictionary", name)
+		}
+		if _, err := dict.Open(p); err == nil || !strings.Contains(err.Error(), "line 2 must be `wudict: 1`") {
+			t.Errorf("%s: open = %v", name, err)
+		}
 	}
 }
 

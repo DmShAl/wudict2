@@ -9,9 +9,9 @@
 package wmd
 
 import (
+	"compress/gzip"
 	"fmt"
 	"io"
-	"os"
 	"path/filepath"
 	"sort"
 	"sync"
@@ -34,43 +34,51 @@ const Format = "wmd"
 func init() {
 	open := func(p string) (dict.Dictionary, error) { return Open(p) }
 	read := func(p string) (dict.Reader, error) { return NewReader(p) }
-	for _, ext := range []string{Ext, ExtGz, ExtDz} {
-		dict.RegisterFormat(ext, open)
-		dict.RegisterReader(ext, read)
+	// Every spelling is claimed by content alike: the `wudict` field on line
+	// 2 is the gate, whatever the file is called (R2.2).
+	for _, ext := range []string{Ext, ExtGz, ExtDz, ExtPlain} {
+		dict.RegisterSniffed(ext, Claim, open, read)
 	}
-	dict.RegisterSniffed(ExtPlain, Sniff, open, read)
 	dict.RegisterReaderVersion(Format, ReaderVersion)
 	resource.Register(Format, resource.Provider{Sources: MediaSources})
 }
 
-// sniffHead bounds what Sniff reads: the title line and the line after it.
-const sniffHead = 4 << 10
+// claimHead bounds what Claim reads: the title line and the line after it.
+const claimHead = 4 << 10
 
-// Sniff decides whether a plain `.md` is a dictionary: line 1 is `# ` and a
-// title, and line 2 is the `wudict` field (R2.2, R3.1). Nothing else
-// qualifies, so a README or a changelog with `## ` sections is never taken for
-// one. A misspelt field (`Wudict:1`) still qualifies: reading it then reports
-// the E-version that tells the author what to fix, instead of ignoring the file.
-func Sniff(path string) bool {
-	f, err := os.Open(path)
-	if err != nil {
-		return false
+// Claim decides whether a file is a WuWeiDict markdown dictionary, from the
+// start of its content r - a `.wudict.md`, a plain `.md`, or either one
+// gzip- or dictzip-compressed, which name tells apart. The gate is the same
+// for every spelling (R2.2, R3.1): line 1 is `# ` and a title, and line 2 is
+// the `wudict` field. Nothing else qualifies, so a README or a changelog with
+// `## ` sections is never taken for one. A misspelt field (`Wudict:1`) still
+// qualifies: reading it then reports the E-version that tells the author what
+// to fix, instead of ignoring the file.
+func Claim(name string, r io.Reader) error {
+	if compressed(name) {
+		zr, err := gzip.NewReader(r)
+		if err != nil {
+			return formatErr("not a gzip stream: %v", err)
+		}
+		r = zr
 	}
-	defer f.Close()
-	head, err := io.ReadAll(io.LimitReader(f, sniffHead))
+	head, err := io.ReadAll(io.LimitReader(r, claimHead))
 	if err != nil {
-		return false
+		return formatErr("cannot be read: %v", err)
 	}
-	return sniff(head)
+	return claim(head)
 }
 
-func sniff(head []byte) bool {
+func claim(head []byte) error {
 	line1, rest := cutLine(decode(head)) // R2.1: BOM, CRLF and CR
-	if rest == nil {
-		return false // no line 2 within the head
-	}
 	line2, _ := cutLine(rest)
-	return titleLine(line1) && versionLine(string(line2))
+	switch {
+	case !titleLine(line1):
+		return formatErr("line 1 must be `# ` and the dictionary title")
+	case !versionLine(string(line2)):
+		return formatErr("line 2 must be `wudict: 1`, the version of the format")
+	}
+	return nil
 }
 
 // Dict is the direct backend. Like DSL, the format has no index of its own:

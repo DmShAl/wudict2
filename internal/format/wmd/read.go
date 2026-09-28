@@ -612,7 +612,14 @@ func (r *Reader) Meta() dict.Meta { return r.meta }
 
 // Next yields the articles in file order, redirects already folded into them
 // (foldRedirects).
-func (r *Reader) Next() (dict.Entry, error) {
+func (r *Reader) Next() (e dict.Entry, err error) {
+	defer func() {
+		// A chunk is parsed again here; the parser is third-party code on
+		// hostile input, and a panic costs the file, never the process.
+		if p := recover(); p != nil {
+			e, err = dict.Entry{}, formatErr("the file could not be parsed: %v", p)
+		}
+	}()
 	for r.i < len(r.entries) {
 		i := r.i
 		e := &r.entries[i]
