@@ -401,14 +401,17 @@ House style lives in the `internal/logx` package doc and is enforced by keeping 
   embedded in the binary.
   - At start the CLI writes it to `<config dir>/builtin/`, rewriting only a file whose content differs, and
     passes it to the registry (`server.WithBuiltin`).
-  - It is listed after the folder scan under the fixed id `wudict-howto`, so `/browse?dict=wudict-howto` works
-    everywhere, and it is flagged `builtin` in `/api/dicts`. It cannot be removed, and its library folder is never
-    listed as imported.
+  - It is listed after the folder scan, while its file exists, under the fixed id `wudict-howto`, so
+    `/browse?dict=wudict-howto` works everywhere, and it is flagged `builtin` in `/api/dicts`. Its library folder is
+    never listed as imported.
+  - Removing it (the panel's Remove…, whole only) deletes its file, images and index, and leaves the marker
+    `wudict-howto.removed` beside it: the app no longer writes it back at start. `/api/config` then reports
+    `howtoRemoved`, and the setup page's "Bring back the wudict howto" (`POST /api/howto?restore=1`) undoes it.
   - It stands down while a dictionary folder holds a file of its name: the user's copy, which
     `POST /api/howto` (the setup page's link) writes into the import folder. The copy takes over the fixed id, so
     the guide's own links still reach it. It is not flagged `builtin`; it is the user's file.
   - Counts that mean "the user's library" exclude it (`UserCount`). The index page serves the app, not the setup
-    page, when it is all there is, and opens it on `wudict intro` under an "Add dictionaries" line.
+    page, when it is all there is, and opens it on `wudict welcome` under an "Add dictionaries" line.
   - Every headword starts with `wudict `, so it never answers a lookup meant for the user's own dictionaries.
 
 - `.wudict.md` or a plain `.md`, either one a dictionary only when its line 2 is `wudict: <version>` (the gate,

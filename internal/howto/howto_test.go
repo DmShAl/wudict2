@@ -75,8 +75,8 @@ func TestGuide(t *testing.T) {
 	if len(arts) < 10 {
 		t.Fatalf("only %d articles", len(arts))
 	}
-	if arts[0].names[0] != "wudict intro" {
-		t.Errorf("the first article is %q, want wudict intro", arts[0].names[0])
+	if arts[0].names[0] != "wudict welcome" {
+		t.Errorf("the first article is %q, want wudict welcome", arts[0].names[0])
 	}
 	names := map[string]bool{}
 	for _, a := range arts {
@@ -106,6 +106,8 @@ func TestGuide(t *testing.T) {
 			if d := u.Query().Get("dict"); d != "" && d != ID {
 				t.Errorf("%s: link names dictionary %q, want %q", where, d, ID)
 			}
+		case strings.HasPrefix(v, "https://") && tag == "a":
+			// the project's own pages - its source, its site - open in a new tab
 		case tag == "img":
 			if _, err := os.Stat(filepath.Join(dir, FilesDir, v)); err != nil {
 				t.Errorf("%s: image %q is not shipped", where, v)
@@ -224,5 +226,38 @@ func TestCopyTo(t *testing.T) {
 	}
 	if b, _ := os.ReadFile(p); string(b) != "mine" {
 		t.Error("the user's copy was overwritten")
+	}
+}
+
+// TestRemoveRestore: a removed guide stays removed until Restore brings it
+// back whole.
+func TestRemoveRestore(t *testing.T) {
+	dir := t.TempDir()
+	p, err := Install(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if IsRemoved(dir) {
+		t.Fatal("removed before anything was removed")
+	}
+	if err := MarkRemoved(dir); err != nil {
+		t.Fatal(err)
+	}
+	if !IsRemoved(dir) {
+		t.Error("not marked removed")
+	}
+	for _, f := range []string{p, filepath.Join(dir, FilesDir)} {
+		if _, err := os.Stat(f); err == nil {
+			t.Errorf("%s is still there", f)
+		}
+	}
+	if _, err := Restore(dir); err != nil {
+		t.Fatal(err)
+	}
+	if IsRemoved(dir) {
+		t.Error("still marked removed after Restore")
+	}
+	if b, _ := os.ReadFile(p); !bytes.Equal(b, Source()) {
+		t.Error("Restore did not bring the guide back")
 	}
 }

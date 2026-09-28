@@ -2261,10 +2261,7 @@ function provenance(d){
      the machine running wudict, and from a remote browser only when
      ALLOW_REMOTE_DELETE is on. Never a platform test done here: the page does
      not know what it is running on, and must not guess. */
-  // The wudict howto ships with the app and is written again at every start:
-  // there is nothing to remove, and the checkbox is how it stops being
-  // searched.
-  const canDel=!!(cfgInfo&&cfgInfo.canDelete)&&!d.builtin;
+  const canDel=!!(cfgInfo&&cfgInfo.canDelete);
   if(canDel)rows.push(`<div class="rmwrap">${rmTrigger()}</div>`);
   // The flat one-line form has nowhere to put a control, so a card that can be
   // deleted always gets the disclosure - even when the body holds nothing else.
@@ -2799,6 +2796,15 @@ function askRemoval(pd){
   // file list it is about, already open, with the paths it would delete listed
   // directly above it.
   const wrap=pd.querySelector(".rmwrap");if(!wrap)return;
+  /* The wudict howto is the app's own: removing it loses nothing that cannot
+     be had back, so it is one plain choice and says where the way back is -
+     none of the "no undo" warning, which would be untrue here. */
+  if(d.builtin){
+    wrap.innerHTML=`<span class="rmq">Remove <b>${esc(dictLabel(d))}</b>`+
+      ` — Setup can bring it back any time`+
+      `<br><span class="rmgo" data-rm="all">remove</span><span class="rmno">↩ cancel</span></span>`;
+    return;
+  }
   const idx=(d.dbSize||0)+(d.mediaSize||0);
   const prepared=idx>0||!!d.mediaDB;
   // "dictionary files only" is a genuine option exactly once: the dictionary is
@@ -5248,11 +5254,11 @@ function welcome(){
   if(!$("welcome")){
     const w=document.createElement("div");
     w.id="welcome";
-    w.innerHTML='No dictionaries of your own yet — <a href="/setup">Add dictionaries</a>. '+
-      'Meanwhile, here is wudict\u2019s own guide.';
+    w.innerHTML='No dictionaries found. Tap <a href="/setup">Add more dictionaries</a> to configure your collection. '+
+      'Or, browse wudict\u2019s howto guide below.';
     $("out").before(w);
   }
-  searchFor("wudict intro",{scope:guide.id,record:"replace"});
+  searchFor("wudict welcome",{scope:guide.id,record:"replace"});
 }
 Promise.all([loadPrefs(),loadConfig(),loadUserCSS()]).then(loadDicts).then(()=>{applyURL();welcome()});
 </script>

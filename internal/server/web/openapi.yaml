@@ -370,6 +370,15 @@ paths:
         `wudict-howto.wudict.files/`) into the folder imports go to - the first
         dictionary folder - then rescans. The copy is listed in place of the
         built-in guide. An existing copy is never overwritten.
+        With `restore=1` it instead brings the built-in guide back after the
+        user removed it (`DELETE /api/library?dict=wudict-howto`, which
+        records the removal so it is not written back at the next start).
+      parameters:
+        - name: restore
+          in: query
+          required: false
+          schema: { type: string, enum: ['1'] }
+          description: Bring the removed built-in guide back instead of copying it.
       responses:
         '200':
           description: Copied; `path` is the new file.
@@ -2136,6 +2145,7 @@ components:
         prepared: { type: integer }
         useCached: { type: boolean }
         configPath: { type: string, description: The config file in effect. }
+        howtoRemoved: { type: boolean, description: 'The user removed the built-in wudict howto; POST /api/howto?restore=1 brings it back.' }
         total: { type: integer, description: Dictionaries served. }
         dictDirOrigin:
           type: string

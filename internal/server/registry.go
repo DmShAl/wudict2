@@ -1007,9 +1007,11 @@ func (r *Registry) nudge() {
 type Option func(*Registry)
 
 // Builtin is a dictionary the app ships: the wudict howto (internal/howto).
-// It is listed after every folder is scanned, under a fixed ID so links to it
-// work on every machine, and it stands down when a dictionary folder holds a
-// file of the same name - the user's own copy, which is then the one listed.
+// It is listed after every folder is scanned, while its file exists, under a
+// fixed ID so links to it work on every machine, and it stands down when a
+// dictionary folder holds a file of the same name - the user's own copy, which
+// is then the one listed. Removing it deletes its file, so it is no longer
+// listed; the caller records the removal so it is not written back.
 type Builtin struct {
 	ID   string
 	Path string
@@ -1153,6 +1155,9 @@ func (r *Registry) Rescan() error {
 	var shipped []string           // every builtin's path, listed or standing down
 	for _, b := range builtin {
 		shipped = append(shipped, b.Path)
+		if !fileExists(b.Path) {
+			continue // removed by the user (howto.MarkRemoved), or never written
+		}
 		if copyPath, ok := fileNamed(paths, filepath.Base(b.Path)); ok {
 			// The user's copy stands in, under the builtin's id, so every
 			// link written to the guide still reaches it. It is theirs:
@@ -1292,6 +1297,27 @@ func libraryPaths(discovered []string) []string {
 		out = append(out, e.TextDB)
 	}
 	return out
+}
+
+// builtinID reports whether id names a dictionary the app ships, as listed now.
+func (r *Registry) builtinID(id string) bool {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	e, ok := r.byID[id]
+	return ok && e.builtin
+}
+
+// AddBuiltin lists one more of the app's own dictionaries (a restored guide);
+// the next Rescan picks it up.
+func (r *Registry) AddBuiltin(b Builtin) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, have := range r.builtin {
+		if have.ID == b.ID {
+			return
+		}
+	}
+	r.builtin = append(r.builtin, b)
 }
 
 // IsBuiltin reports whether path is the source of a dictionary the app ships.

@@ -78,6 +78,10 @@ type Server struct {
 	// even when the folder came from a CLI flag or the file is read-only.
 	ConfigPath string
 
+	// HowtoDir is where the built-in wudict howto lives (internal/howto), and
+	// where its removal is recorded; "" when this wudict has no such place.
+	HowtoDir string
+
 	// Version identifies this build in the Server response header. A second
 	// launch uses that header to recognise an already-running wudict on
 	// the port - without it, "the port is busy" says nothing about WHO holds

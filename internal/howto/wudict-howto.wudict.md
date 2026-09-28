@@ -3,28 +3,30 @@ wudict: 1
 from: en
 to: en
 
-Type `wudict help` in the search box for quick access, and [browse it A–Z](/browse?dict=wudict-howto).
+Type `wudict help` in the search box for quick access, and [browse](/browse?dict=wudict-howto).
 
-## wudict intro
 ## wudict welcome
+## wudict intro
 ## wudict 1st run
 ## wudict howto
 ## wudict help
 
-> _Quick actions_
+<em>💡Tip</em>: you can return to this article at any time by searching for `wudict welcome` or `wudict intro`
+
+> *Quick actions*
 
 - [Browse this guide](/browse?dict=wudict-howto)
 - [Add dictionaries](/setup)
 - [Add/remove morphology files](/lemmas)
-- [Explore the dictionary panel<kbd>☰</kbd>](<entry://wudict panel>) 
+- [Explore the dictionary panel <kbd>☰</kbd>](<entry://wudict panel>)
 
-> _Wudict features_
+> *Wudict features*
 
 - Formats: MDict (`.mdx/.mdd`), StarDict (`.ifo/.idx/.dict/.dz`), Aard2 (`.slob`), Lingvo DSL (`.dsl/.dsl.dz`), Babylon (`.bgl`), ZIM (`.zim`), and Wudict Markdown (`.wudict.md`)
 - Instant search across all dictionaries with four [search modes](<entry://wudict search>): prefix, exact, contains, and full-text search
 - Dictionaries are automatically grouped by language, publisher, direction, type.
 - Double-tap any word in a wudict dictionary article to instantly look up its definition
-- Adjust the font size via the <kbd>☰</kbd> → **+**/**-** widget
+- Adjust the font size via the <kbd>☰</kbd> → <kbd>−</kbd> <kbd>+</kbd> widget
 - Custom [lemmatization (word-form morphology)](<entry://wudict lemmatization>) for 24 languages, configurable via <kbd>☰</kbd> → <kbd>⚙️</kbd> → **Lemmatization**; English lemmatization comes pre-installed
 - Android: Immersive mode (full screen), to draw content edge-to-edge, including the camera cutout area; enable by long-tapping the wudict icon in the launcher → **Settings**
 - Browse **all headwords** in any dictionary via <kbd>☰</kbd> → <kbd>**Browse**</kbd>
@@ -47,7 +49,7 @@ Type `wudict help` in the search box for quick access, and [browse it A–Z](/br
 
 ### Quick Start
 
-1. [Add dictionaries](<entry://wudict add dictionaries>): MDict, StarDict, Slob, DSL, Babylon, ZIM, and [more](<entry://wudict formats>). 
+1. [Add dictionaries](<entry://wudict add dictionaries>): MDict, StarDict, Slob, DSL, Babylon, ZIM, and [more](<entry://wudict formats>).
 2. Search. Double-click a word in an article (📱 double-tap) to look it up.
 3. In <kbd>☰</kbd>, drag <kbd>⠿</kbd> placeholder to set your search priority order.
 4. Install word forms for your languages: ![](lemmas.svg) [Lemmatization](/lemmas). English is built in.
@@ -61,7 +63,7 @@ Open the dictionary panel <kbd>☰</kbd> to:
 - **Text size**: <kbd>−</kbd> <kbd>15px</kbd> <kbd>+</kbd> in the ![](cog.svg) row; click the number to reset.
 - ![](rescan.svg) <kbd>Rescan folders</kbd> can be used to refresh the dictionary folders after adding or removing items.
 
-More: [search](<entry://wudict search>) · [full-text](<entry://wudict full-text>) · [panel](<entry://wudict panel>) · [index](<entry://wudict index>) · [styles](<entry://wudict styles>) · [links](<entry://wudict links>) · [📱 Android](<entry://wudict android>) · [💻 desktop](<entry://wudict desktop>) · [troubleshooting](<entry://wudict troubleshooting>)
+More: [search](<entry://wudict search>) · [full-text](<entry://wudict full-text>) · [panel](<entry://wudict panel>) · [index](<entry://wudict index>) · [styles](<entry://wudict styles>) · [links](<entry://wudict links>) · [📱 Android](<entry://wudict android>) · [💻 desktop](<entry://wudict desktop>) · [FAQ](<entry://wudict FAQ>)
 
 ## wudict search
 ## wudict search modes
@@ -76,7 +78,11 @@ More: [search](<entry://wudict search>) · [full-text](<entry://wudict full-text
 | **contains** | your text anywhere in a headword | you know the middle |
 | **full-text** | words inside article text, best first | you remember the meaning, not the word |
 
-[base form lemmas](<entry://wudict lemmatization>) let you find **know** by typing *knew*. 
+[base form lemmas](<entry://wudict lemmatization>) let you find **know** by typing *knew*.
+
+***
+
+- [index](/browse?dict=wudict-howto)
 
 ## wudict full-text
 ## wudict fts
@@ -96,14 +102,18 @@ More: [search](<entry://wudict search>) · [full-text](<entry://wudict full-text
 
 Operators count only in capitals: `wage not minimum` is three words. A query never fails; what cannot be parsed is read as plain words. ![](highlight.svg) <kbd>Highlight matches</kbd> in <kbd>☰</kbd> marks the words found; step through them with the chevrons (💻 <kbd>←</kbd> <kbd>→</kbd>, <kbd>F3</kbd>).
 
+- [index](/browse?dict=wudict-howto)
+
 ## wudict lemmatization
 ## wudict word forms
 ## wudict inflected words
 ## wudict lemmas
 
-**Lemmatization is applied as a fallback when there are no exact matches: *knew* finds **know**, *estuviera* finds **estar**. 24 languages: English is built in, the others install in one tap from ![](lemmas.svg) [Lemmatization](/lemmas) (also in <kbd>☰</kbd> → ![](cog.svg)).
+**Lemmatization is applied as a fallback when there are no exact matches**: *knew* finds **know**, *estuviera* finds **estar**. 24 languages: English is built in, the others install in one tap from ![](lemmas.svg) [Lemmatization](/lemmas) (also in <kbd>☰</kbd> → ![](cog.svg)).
 
 Each language is a small download (under 2 MB) and is used only for dictionaries in that language: Spanish *sale* → **salir** is never asked of an English dictionary. Untick a language to delete it.
+
+- [index](/browse?dict=wudict-howto)
 
 ## wudict panel
 ## wudict ☰
@@ -112,30 +122,31 @@ Each language is a small download (under 2 MB) and is used only for dictionaries
 
 <kbd>☰</kbd> **holds your dictionaries and every setting**. The top row changes how you read; the ![](cog.svg) row changes what wudict does; the list below is your dictionaries, in the order results appear.
 
-**NOTE** 
-For lemmatization to work, wuDict _must_ be able to detect the dictionary language.
-Some dictionary formats such as Babylon (`.bgl`) and Lingvo (`.dsl`) contains data about the headword language, 
-which is sufficient.
-Most other dictionaries have no language metadata, wuDict infers the language using the following strategy 
-in the listed order of priority:
+**IMPORTANT**
 
-- if the dictionary file starts with e.g. `es-es` or `spa-eng` (for example, spa-eng-oxford.mdx)
-then the first language code will be used as the lemmatization language
-- if the dictionary **title** contains a valid language code then that is used 
-- if the dictionary parent folder is a valid language 
-code such as `es` or `spa` then this will be used as the lemmatization language.
-- if none of the previous checks found a language code then English is used by default, 
-which implies that for English dictionaries you do not need to rename your files or the parent 
-subfolders to match `en` or `eng`.
+> ❗️ For lemmatization to work, wuDict needs to know the dictionary language! Some dictionary formats such as Babylon (`.bgl`) and Lingvo (`.dsl`) contain data about the headword language, which is sufficient. Dictionary formats like `.mdx` have no language metadata, wuDict infers the language using the following strategy in the given order of priority:
 
-### Reading
+- if the dictionary file starts with e.g. `es-es` or `spa-eng` (for example, spa-eng-oxford.mdx) then the first language code will be used as the lemmatization language
+- if the dictionary **title** contains a valid language code then that is used
+- if the dictionary parent folder is a valid language code such as `es` or `spa` then this will be used as the lemmatization language.
+- if none of the previous checks found a language code then English is used by default, which implies that for English dictionaries you do not need to rename your files or the parent subfolders to match `en` or `eng`.
+
+***
+
+- [index](/browse?dict=wudict-howto)
+
+### Display options
 
 - ![](highlight.svg) <kbd>Highlight matches</kbd>: mark the words a [full-text](<entry://wudict full-text>) search found.
 - ![](speak.svg) <kbd>Read aloud</kbd>: select text in an article to hear it in a system voice.
-- **Open first**, **Sort dictionaries**: see [wudict intro](<entry://wudict intro>).
+- **Open first**, **Sort dictionaries**: see [wudict welcome](<entry://wudict welcome>).
 - **Group by**: which groups the dictionary picker offers (language, language pair, publisher, …).
 
-### The ![](cog.svg) row
+***
+
+- [index](/browse?dict=wudict-howto)
+
+### Settings ![](cog.svg)
 
 - <kbd>−</kbd> <kbd>15px</kbd> <kbd>+</kbd>: [text size](<entry://wudict text size>).
 - ![](folder.svg) <kbd>Edit folders…</kbd>: [add dictionaries](<entry://wudict add dictionaries>).
@@ -145,10 +156,14 @@ subfolders to match `en` or `eng`.
 - ![](styles.svg) <kbd>Custom styles…</kbd>: [your own look](<entry://wudict styles>).
 - <kbd>Full-text for every dictionary…</kbd>: build every full-text [index](<entry://wudict index>) at once.
 
-### Each dictionary
+***
+
+- [index](/browse?dict=wudict-howto)
+
+### Per dictionary
 
 - <kbd>⠿</kbd> drag, or <kbd>⏫</kbd> <kbd>▲</kbd> <kbd>▼</kbd> <kbd>⏬</kbd>: its place in your list.
-- the checkbox: included in *All dictionaries*, or only when picked by name.
+- the on/off knob: include/exclude from *All dictionaries* search, even when <kbd>OFF</kbd> a dictionary is still searchable when selected explicitly in the combobox.
 - click or tap the dictionary name: search only this dictionary.
 - <kbd>contains</kbd> <kbd>full-text</kbd> <kbd>media</kbd>: optional [indexes](<entry://wudict index>), with their size.
 - ![](browse.svg) <kbd>Browse</kbd>: [A–Z](<entry://wudict browse>). **About this dictionary**: its details.
@@ -175,6 +190,10 @@ In <kbd>☰</kbd> → ![](cog.svg) row → <kbd>−</kbd> <kbd>15px</kbd> <kbd>+
 
 After copying files into a folder, press ![](rescan.svg) <kbd>Rescan folders</kbd> in <kbd>☰</kbd>. Copy every part of a dictionary: see [wudict formats](<entry://wudict formats>).
 
+***
+
+- [index](/browse?dict=wudict-howto)
+
 ## wudict formats
 ## wudict dictionary formats
 ## wudict files
@@ -191,15 +210,17 @@ After copying files into a folder, press ![](rescan.svg) <kbd>Rescan folders</kb
 | ZIM | `.zim` (Kiwix, Wikipedia, Wiktionary) |
 | wudict markdown | `.wudict.md`, a [text file you can write](<entry://wudict markdown>) |
 
-Speex `.spx` audio auto-converted for browser playback. A folder named after a language (`es/`) can be used to signal to wudict the language of a dictionary. The preferred way is for dictionary files to have a file prefix with a two character or three character
-language codes, e.g. `fr-es-oxford.mdx` or `fra-spa-oxford.mdx`.
+Speex `.spx` audio auto-converted for browser playback. A folder named after a language (`es/`) can be used to signal to wudict the language of a dictionary. The preferred way is for dictionary files to have a file prefix with a two character or three character language codes, e.g. `fr-es-oxford.mdx` or `fra-spa-oxford.mdx`.
+
+***
+
+- [index](/browse?dict=wudict-howto)
 
 ## wudict index
 ## wudict indexing
 ## wudict prepare
 
-**wudict indexes each dictionary in the background**. You can search a dictionary even if it has no headword index, but the index makes it faster and more efficient for RAM/CPU consumption as well as battery life. In the dictionary panel <kbd>☰</kbd> you can also optionally enable <kbd>contains</kbd> and <kbd>full-text</kbd> indexes — these can be additional GB for large dictionaries,
-are optional and can be enabled on-demand.
+**wudict indexes each dictionary in the background**. You can search a dictionary even if it has no headword index, but the index makes it faster and more efficient for RAM/CPU consumption as well as battery life. In the dictionary panel <kbd>☰</kbd> you can also optionally enable <kbd>contains</kbd> and <kbd>full-text</kbd> indexes — these can be additional GB for large dictionaries, are optional and can be enabled on-demand.
 
 - <kbd>media</kbd> packs a dictionary's pictures and sounds into its index, so it keeps working if you delete the original files, and also makes access faster to assets such as images and audio.
 - <kbd>Full-text for every dictionary…</kbd> in the ![](cog.svg) row will generate full-text indexes for all dictionaries — IMPORTANT: depending on the size of you dictionary collection this can take extra GB of space and last a few minutes until complete.
@@ -208,12 +229,20 @@ are optional and can be enabled on-demand.
 
 An index usually takes less space than the dictionary file.
 
+***
+
+- [index](/browse?dict=wudict-howto)
+
 ## wudict browse
 ## wudict all headwords
 
 **Read a dictionary word by word, A to Z**: ![](browse.svg) <kbd>Browse</kbd> on a dictionary in <kbd>☰</kbd>, or ![](browse.svg) <kbd>Browse A–Z…</kbd> in the ![](cog.svg) row. [Try it on this guide](/browse?dict=wudict-howto).
 
 Tap a letter to jump; type the start of a word to go there; tap a headword to read it. 💻 Press the <kbd>←</kbd> <kbd>→</kbd> arrow keys turn pages, <kbd>Home</kbd> <kbd>End</kbd> jump to the first and last page.
+
+***
+
+- [index](/browse?dict=wudict-howto)
 
 ## wudict links
 ## wudict cross-references
@@ -224,6 +253,10 @@ Tap a letter to jump; type the start of a word to go there; tap a headword to re
 
 Every search has its own address, so you can bookmark it: `/?q=word&mode=exact`. 📱 `wudict://lookup?q=word` opens a lookup from other apps and scripts.
 
+***
+
+- [index](/browse?dict=wudict-howto)
+
 ## wudict read aloud
 ## wudict speak
 ## wudict pronunciation
@@ -231,6 +264,10 @@ Every search has its own address, so you can bookmark it: `/?q=word&mode=exact`.
 ## wudict Text-to-speech
 
 **Select text in an article and press the speaker icon that appear to hear it** in a system voice for the article's language. The TTS feature can be disabled via the ![](speak.svg) <kbd>Read aloud</kbd> in <kbd>☰</kbd>. A dictionary's own recordings play with a click on their speaker icon.
+
+***
+
+- [index](/browse?dict=wudict-howto)
 
 ## wudict styles
 ## wudict custom styles
@@ -241,6 +278,10 @@ Every search has its own address, so you can bookmark it: `/?q=word&mode=exact`.
 
 <kbd>◐</kbd> switches light, dark and automatic theme. <kbd>Clear</kbd> then <kbd>Save</kbd> removes a style. If a custom style caused the entire page to disappear, append `?style=off` to the URL (💻 desktop only).
 
+***
+
+- [index](/browse?dict=wudict-howto)
+
 ## wudict remove
 ## wudict delete
 
@@ -248,10 +289,14 @@ In <kbd>☰</kbd> → the dictionary → click 🗑 → <kbd>Remove…</kbd>, th
 
 To stop searching a dictionary without deleting anything, untick its checkbox instead.
 
+***
+
+- [index](/browse?dict=wudict-howto)
+
 ## wudict android
 ## wudict mobile
 
-📱 **Look up a word from any app**: select it and pick <kbd>wuDict</kbd> in the selection menu, or share it to wuDict; the wuDict definition floats in a popup over the original app. To discard it, press Back or tap anywhere outside the popup. 
+📱 **Look up a word from any app**: select it and pick <kbd>wuDict</kbd> in the selection menu, or share it to wuDict; the wuDict definition floats in a popup over the original app. To discard it, press Back or tap anywhere outside the popup.
 
 > NOTE: If, instead of a popup, you'd rather have wudict open in a full window, then long press the wudict icon in the launcher and select <kbd>wuDict Settings</kbd> and check the corresponding checkbox under **Look up in the full app**.
 
@@ -259,6 +304,10 @@ To stop searching a dictionary without deleting anything, untick its checkbox in
 - **Full screen**: long-tap the wuDict icon on the home screen → <kbd>Settings</kbd> → immersive mode, optionally edge to edge, into the camera cutout.
 - The keyboard hides when you scroll an article. Off screen, wuDict uses one core, to spare the battery.
 - `wudict://lookup?q=word` opens a lookup from automation apps and scripts.
+
+***
+
+- [index](/browse?dict=wudict-howto)
 
 ## wudict desktop
 ## wudict computer
@@ -275,6 +324,10 @@ To stop searching a dictionary without deleting anything, untick its checkbox in
 - **wuDict Hover** (Chrome, Firefox): hover a word on any web page (optionally holding <kbd>Alt</kbd>) to see its definition in a popup.
 - **Command line**: `wudict searchall word` searches from a terminal; `wudict dump -format md` writes any dictionary as [wudict markdown](<entry://wudict markdown>); `wudict help` lists the rest.
 
+***
+
+- [index](/browse?dict=wudict-howto)
+
 ## wudict markdown
 ## wudict md
 ## wudict md format
@@ -283,6 +336,10 @@ To stop searching a dictionary without deleting anything, untick its checkbox in
 
 <details>
 <summary>An example</summary>
+
+***
+
+- [index](/browse?dict=wudict-howto)
 
 ```markdown
 # My Glossary
@@ -298,3 +355,39 @@ The property of an object that depends on the light it reflects. See [hue](entry
 
 More `##` lines right under the first are other spellings. Links like `[hue](entry://hue)` trigger a lookup. Tables, lists, images and the rest of standard markdown work. 💻 Running `wudict dump -format md` from a console lets you export any existing dictionary to wudict markdown. To edit this guide, put a copy in your folder: [Setup](/setup) → **Put the wudict howto in this folder**.
 
+***
+
+- [index](/browse?dict=wudict-howto)
+
+## wudict FAQ
+
+<details>
+<summary>wudict is using too much disk space — how do I claim it back?</summary>
+
+For every dictionary in the panel <kbd>☰</kbd> the size of headword, contains, and full-text search indexes are displayed. Also for dictionaries with assets (e.g. `.mdd`) resources also might be imported into a wudict optimized sqlite-based storage. You can reclaim space by deleting the *contains*, and *full-text search* indexes for dictionaries for which you don't need them - just tap the corresponding badge in the panel. Clicking the dictionary source file in the card, located below the <kbd>Browse</kbd> button, will display a delete option for deleting both the indexes and/or the source dictionaries (use with caution!)
+
+</details>
+
+<details>
+<summary>Why does searching estuviera find nothing?</summary>
+
+Because word-form data for Spanish is not installed. wudict retries a failed search with the word's dictionary form — *knew* → **know** — but only English is built into the program; every other language is a small file you install.
+
+Click <kbd>☰</kbd> → <kbd>⚙</kbd> → <kbd>🔤 Lemmatization</kbd> (or on the settings page), tick Spanish, and search again — it works immediately, with no restart. On a desktop, [`wudict lemmas download es`](/lemmas) does the same.
+
+💡 **IMPORTANT**: Dictionary formats like `.mdx`, `.slob` and others contain *no metadata* about the headwords language. Lemmatization will only work for these dictionaries if their filename starts with a two or three character language code prefix e.g. with `es-es`, `fr-en` (will be detected as French). Or, as an alternative, you can place all the dictionaries for a specific source language under a subfolder that must match exactly the language code, e.g. `de` or `it`.
+
+For English language dictionaries the `en-en` prefix is optional, since wudict will by default use English as the fallback lemmatization language if it cannot be detected from the dictionary metadata or from the filename or subfolder name. If the dictionary title contains an actual language name, such as Spanish, German, etc. that will be used as a fallback if other methods returned no results.
+
+</details>
+
+<details>
+<summary>What is the format used for this dictionary and where can I see its source code?</summary>
+
+The wudict howto dictionary uses **wudict markdown** format, and you can build your own markdown dictionary using the example source at [wudict-howto.wudict.md](https://github.com/wuweidict/wudict/blob/master/internal/howto/wudict-howto.wudict.md)
+
+</details>
+
+***
+
+- [index](/browse?dict=wudict-howto)

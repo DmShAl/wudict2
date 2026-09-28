@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-"""WuWeiDict markdown (docs/WUDICT-MARKDOWN.md) without pyglossary.
+"""wudict markdown (docs/WUDICT-MARKDOWN.md) without pyglossary.
 
 The reader and the two writer modes of the format, as a port of wudict's own
 Go implementation (internal/format/wmd). The two are kept byte-identical by
@@ -1243,7 +1243,7 @@ class Inline:
 			else:
 				self.syntax(f"<{name}>{inner}</{name}>")
 			self.hoist(sub, False)
-		elif tag in ("sup", "sub", "u", "small", "del", "s", "strike", "ins"):
+		elif tag in ("sup", "sub", "u", "small", "del", "s", "strike", "ins", "kbd"):
 			name = "del" if tag in ("s", "strike") else tag
 			sub = self.sub()
 			sub.nodes(n.children)
@@ -1252,7 +1252,7 @@ class Inline:
 			if inner:
 				self.syntax(f"<{name}>{inner}</{name}>")
 			self.hoist(sub, False)
-		elif tag in ("code", "kbd", "samp", "tt"):
+		elif tag in ("code", "samp", "tt"):
 			t = " ".join(fields_hspace(text_content(n)))
 			if not t:
 				return
@@ -1423,7 +1423,8 @@ def is_asset_name(ref: str) -> bool:
 def cross_ref(v: str):
 	"""The lookup link a relative link href stands for (R6.9), or None."""
 	v = v.strip(" \t\n\r\f")
-	if v == "" or v[0] in "#?" or scheme_ref(v) or v.startswith("//") or is_asset_name(v):
+	if (v == "" or v[0] in "#?/" or scheme_ref(v) or is_asset_name(v)
+			or fold_eq_prefix(v, "res/") or fold_eq_prefix(v, "assets/")):
 		return None
 	if dec(v.partition("#")[0]).strip(" \t") == "":
 		return None

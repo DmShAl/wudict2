@@ -1413,12 +1413,17 @@ Hint: pick another port with --port, e.g.:  wudict --port %s
 	// beside the config in effect (rewritten only when this build's guide
 	// differs), and listed with the user's dictionaries. Without a place to
 	// write it, the app starts without it.
+	// Once the user removed it, it is not written back until Setup restores it;
+	// the registry lists it only while its file exists either way.
+	howtoDir := ""
 	if d := userDir(cfgFile); d != "" {
-		if p, err := howto.Install(filepath.Join(d, "builtin")); err != nil {
-			logx.Warn("the wudict howto is not available: %v", err)
-		} else {
-			regOpts = append(regOpts, server.WithBuiltin(server.Builtin{ID: howto.ID, Path: p}))
+		howtoDir = filepath.Join(d, "builtin")
+		if !howto.IsRemoved(howtoDir) {
+			if _, err := howto.Install(howtoDir); err != nil {
+				logx.Warn("the wudict howto is not available: %v", err)
+			}
 		}
+		regOpts = append(regOpts, server.WithBuiltin(server.Builtin{ID: howto.ID, Path: filepath.Join(howtoDir, howto.FileName)}))
 	}
 	reg, err := server.NewRegistry(cfg.DictDirs, cfg.UseCached, regOpts...)
 	if err != nil {
@@ -1431,6 +1436,7 @@ Hint: pick another port with --port, e.g.:  wudict --port %s
 	}
 	srv := server.New(reg)
 	srv.ConfigPath = cfgFile
+	srv.HowtoDir = howtoDir
 	srv.StyleDir = stylePath(cfgFile)
 	store.SetCompressBodies(!cfg.NoCompress)
 	server.SetIndexWorkers(cfg.IndexWorkers)

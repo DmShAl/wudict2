@@ -34,6 +34,9 @@ const (
 	FilesDir = "wudict-howto.wudict.files"
 	// ID is the built-in guide's dictionary id, the same on every machine.
 	ID = "wudict-howto"
+	// removedMark, beside the built-in guide, records that the user removed
+	// it: the app then stops writing it back at every start, until Restore.
+	removedMark = "wudict-howto.removed"
 )
 
 //go:embed wudict-howto.wudict.md wudict-howto.wudict.files
@@ -77,6 +80,33 @@ func Install(dir string) (string, error) {
 		}
 	}
 	return filepath.Join(dir, FileName), nil
+}
+
+// IsRemoved reports whether the user removed the built-in guide from dir.
+func IsRemoved(dir string) bool {
+	_, err := os.Stat(filepath.Join(dir, removedMark))
+	return err == nil
+}
+
+// MarkRemoved records that the user removed the built-in guide from dir, and
+// deletes whatever of it is still there: the app then no longer installs it.
+func MarkRemoved(dir string) error {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return err
+	}
+	if err := writeIfChanged(filepath.Join(dir, removedMark), []byte("removed by the user; Setup brings it back\n")); err != nil {
+		return err
+	}
+	os.Remove(filepath.Join(dir, FileName))
+	return os.RemoveAll(filepath.Join(dir, FilesDir))
+}
+
+// Restore undoes MarkRemoved: the guide is installed again and stays.
+func Restore(dir string) (string, error) {
+	if err := os.Remove(filepath.Join(dir, removedMark)); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return "", err
+	}
+	return Install(dir)
 }
 
 // CopyTo puts an editable copy of the guide and its images into a dictionary
