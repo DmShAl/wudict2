@@ -310,13 +310,31 @@ func FormatArticles(d dict.Dictionary, format, base string, rs []dict.Result) {
 	for i := range rs {
 		rs[i].Body = RewriteEntryHTML(rs[i].Body, id)
 	}
-	var st htmlref.Styles
-	if names := stylesheetNames(rs[0].Body, id); len(names) > 0 {
-		st = stylesFrom(d, names)
-	}
+	st := stylesLinked(d, rs[0].Body, id)
 	for i := range rs {
 		rs[i].Body = applyFormat(rs[i].Body, format, base, st)
 	}
+}
+
+// ArticleStylesheets lists the resources an article - as stored - links as
+// stylesheets, as `clean` finds them for the server (cleanPolicy); DictStyles
+// reads them into the display table. A dictionary links its stylesheet from
+// every article, so a caller that walks all of them - `wudict dump -format md`
+// - asks until one does, and opens the dictionary only then.
+func ArticleStylesheets(body string) []string {
+	const id = "0" // any id: the names are found by the prefix it makes
+	return stylesheetNames(RewriteEntryHTML(body, id), id)
+}
+
+// DictStyles is the display table of d's stylesheets names.
+func DictStyles(d dict.Dictionary, names []string) htmlref.Styles { return stylesFrom(d, names) }
+
+// stylesLinked reads the stylesheets body, already rewritten for id, links.
+func stylesLinked(d dict.Dictionary, body, id string) htmlref.Styles {
+	if names := stylesheetNames(body, id); len(names) > 0 {
+		return stylesFrom(d, names)
+	}
+	return nil
 }
 
 // originOf is the base a client reached us on, so absolutised references point

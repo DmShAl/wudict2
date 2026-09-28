@@ -53,13 +53,37 @@ The reference projects cited below (`pyglossary/…`, `mdict-go-web/…`, `draeg
 - **No `resource.Provider` is registered**, for the same reason bgl has none but the opposite arithmetic: O8's locator exists because reopening an `.mdx` costs 280 MB of index build, and reopening a `.zim` builds nothing at all. Rung 3 is already the cheap path.
 - Reference: **`unidict-deps/czim`** (C11, plus its `docs/zim_format.md`) is the only from-scratch implementation of the four that were available, and the structural source here; pyglossary's `zimfile`, `zim-cgo`, and — contrary to expectation — **goldendict-ng's `zim.cc`** are all `libzim` shims and carry no binary knowledge. Two czim defects are **not** ported: a fixed 256-byte MIME-string buffer that silently desynchronises the list walk (a zimit capture has multi-kilobyte paths), and `lzma_alone_decoder` for codec 4, where real files write an **xz** stream (`FD 37 7A 58 5A 00`).
 
-## wudict markdown (specified D153, not implemented)
+## wudict markdown (D154)
 
-- Normative spec: `docs/WUDICT-MARKDOWN.md` (tool-agnostic). Examples + expected render: `docs/wudict-markdown/examples/`, to become reader/writer tests.
-- Implementation map:
-  - `internal/htmlmd` — `Canon` (L1–L5: CR, lookup schemes → `entry://`, `sound://` pseudo-scheme, host-only roles, comments), `Equivalent` (N), `Convert` (HTML → markdown: flow runs/blocks; A/B/W/C attempts, each verified; whole-entry re-read), in-house WHATWG `Serialize` with the R8.9 changes.
-  - `internal/format/wmd` — `scan.go` (§3 line-local scan, fuzzed), `render.go` (goldmark core + Table with `TableCellAlignAttribute` + `WithUnsafe`; in-house `~`/`^` delimiter processor (goldmark's Strikethrough takes a single `~`), R5.3 attribute parser, spans, divs, attribute lines and `{-}`, link/image/heading/reference-link attributes, wikilinks with R5.18 encoding, ruby, `{=html}` fence, link/image renderers without URL escaping, unwrap), `reader.go`, `writer.go`, `wmd.go` (`RegisterFormat`/`RegisterReader` for `.wudict.md`, `.wudict.md.gz`, `.wudict.md.dz` (streamed with `compress/gzip`; the stardict `dzReader` random access is not needed for a one-pass scan) and the `.wudict.zip` bundle (`archive/zip`, R2.6–R2.7 checks before the scan), `RegisterReaderVersion("wmd", 1)`, DSL-style auto-prepare, `MediaSources` over `<stem>.wudict.files{,.zip}`).
-  - `internal/cli/dump.go` — `-format csv|md|markdown`; md writes `<base>.wudict.md` + `<base>.wudict.files/`; `LinkTo` → `see:`.
+- Normative spec: `docs/WUDICT-MARKDOWN.md`. The examples (`docs/wudict-markdown/examples/{clean,html}.wudict.md`)
+  are the spec's §10 byte for byte, and are what the writer produces from §10's sources.
+- Standard CommonMark + GFM tables, read by a **stock** parser with no plugins: goldmark v2 (`extension.TableParser`,
+  `html.WithUnsafe()`). Entries are the top-level H2 nodes; adjacent H2s are one entry (headword + aliases).
+  Verified on the Espasa-Calpe dump in both modes: stock markdown-it-py (`commonmark` + `table`) finds the same
+  38,521 entries with the same names.
+- `internal/format/wmd`:
+  - `read.go` — the reader. It parses in ~1 MB chunks cut at heading groups, every cut confirmed by the parser
+    (a syntax tree costs ≈43× its text). Link definitions are collected file-wide and prefilled, detached from
+    their nodes. Redirects (`see:`) are folded into every matching article (exact, then case-folded); a dangling
+    one becomes a lookup-link article.
+  - `source.go` — the text a Reader reads a range at a time (`ReaderAt`), so it never holds a whole file: a clean
+    plain file in place; a compressed file, or one needing R2.1 repair, decoded once (streaming, across block
+    boundaries) into a temporary file removed on Close, or into memory where no temporary file can be made. The
+    same pass collects the candidate entry lines, `]:` presence and lines 1-2. Measured: reading back a 1.18 GB
+    file peaks at 113 MB.
+  - `load.go` — R2.1 decoding of a block; `.gz`/`.dz` suffixes, bounded to 1 GiB decompressed.
+  - `wmd.go` — registration (`.wudict.md[.gz|.dz]`, and `.md` through `dict.RegisterSniffed` + `Sniff`: line 1
+    `# title`, line 2 the `wudict` field), a DSL-style auto-prepared `Dict` whose prepared open never reads the
+    source, and `MediaSources` (`<stem>.files.zip`, `<stem>.files/`, loose files).
+  - `convert.go` — `clean` mode: one walk applying the R6.6 allowlist and R6.7 escaping, then a stock parse
+    proving the body cannot split its entry. Fuzzed as a fixed point: converting the stock rendering of its
+    output gives the same output.
+  - `rawmode.go` — `html` mode: `CanonLinks`, the `<div>` wrapper unless already one type-6 element, blank lines
+    removed or turned into `&#10;` inside `pre`/`textarea`/`listing`.
+  - `writer.go` — names (R6.2), header keys (R6.3), bodies spooled to a temporary file with only names in
+    memory, redirect folding with chains (R6.4), assembly (R6.1).
+- `internal/cli/dump_md.go` — `wudict dump -format md -mode html|clean [-compress gz]`: `<base>.wudict.md[.gz]`
+  written to a temporary file and renamed, resources in `<base>.wudict.files/`. A `clean` failure aborts: the raw
+  entry goes to stdout, and the error with the exact `-mode html` command to stderr.
 - F22 (done) — wudict never emits `bword:`. `bword:` is Babylon Ltd.'s proprietary cross-reference scheme, from its BGL glossaries and Babylon Builder projects (late 1990s); no public RFC-style specification exists, only the behaviour open-source dictionary readers reverse-engineered and preserved. Emitters switched to `entry://`: CSV dump redirect anchors, DSL `[ref]`/`<<ref>>` (dsl reader 2), ZIM `entryRef` (zim reader 2); prepared dictionaries get the stale/rebuild offer, never a forced rebuild. A dictionary's own `bword:` links are stored as found and respelled on every way out by `htmlref.CanonRef`/`CanonLinks` (`bword:[//]w` → `entry://w`, `@sub` → `entry:@sub`): the server's article rewrite (so BGL id links like `bword://E310420` too), `lookup -format raw`, and the CSV dump of both a source and a prepared `text.db`. Resolvers (`parseRef` in `index.html`/`frame.js`) keep accepting `bword:`. Targets are built by `htmlref.EntryHref` (`%`, `#`, controls and a leading `@` percent-encoded), so `[ref]C#[/ref]` links to `C%23`, not to `C` with an empty fragment (dsl reader 3, zim reader 3).
-- `internal/artmark` vocabulary comment gains `wu-etym wu-re wu-var wu-syn wu-ant` (no emitted-markup change, no `artmark.Version` bump).
-- Tests: spec §11 vectors, P1 fuzz over real article HTML, P2 over the examples, goldentest entry, dump test; `-tags purego` and tag-less builds.
+- Tests: examples ≡ spec, written and read; header and entry rules; chunking invisible (test + differential fuzz); clean fixed-point fuzz; names round trip; folding; idempotence in both modes; CLI round trip, gzip determinism, resources; reader golden; `-race`.

@@ -2,7 +2,7 @@
 
 **Naming (D27).** The product is **WuWeiDict** in anything a user reads; the technical name is **`wudict`** everywhere else — binary, env prefix (`WUDICT_*`), config dir (`~/.wudict`), db format prefix (`wudict:`), localStorage keys, CSS classes. The module path is `github.com/wuweidict/wudict` because the repo is `wudict`.
 
-Go web dictionary app supporting MDX/MDD, StarDict, Aard2 Slob, Lingvo DSL, Babylon BGL, openZIM; wudict markdown (`.wudict.md`, bidirectional) is specified, not yet implemented. Dual-backend: a dictionary is searched through its own format ("preview", D15) until it is **prepared** into a library folder — `<db dir>/<name>/{text.db, media.db, info.txt}` (D20) — which is the primary mode. Preparation is automatic and cheap (headwords only, `AUTO_INDEX`); *contains* (trigram) and *full-text* are per-dictionary switches, and media packing a third (D24). Search modes are exact · prefix · contains · full-text (D16 — "fuzzy" is retired).
+Go web dictionary app supporting MDX/MDD, StarDict, Aard2 Slob, Lingvo DSL, Babylon BGL, openZIM; wudict markdown (`.wudict.md`: standard CommonMark, read by `internal/format/wmd` and written by `wudict dump -format md`). Dual-backend: a dictionary is searched through its own format ("preview", D15) until it is **prepared** into a library folder — `<db dir>/<name>/{text.db, media.db, info.txt}` (D20) — which is the primary mode. Preparation is automatic and cheap (headwords only, `AUTO_INDEX`); *contains* (trigram) and *full-text* are per-dictionary switches, and media packing a third (D24). Search modes are exact · prefix · contains · full-text (D16 — "fuzzy" is retired).
 
 ## Read this first (token discipline)
 - `docs/SPEC.md` — architecture, schema, query engine. Read before writing any code.

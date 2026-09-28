@@ -1992,7 +1992,7 @@ components:
         name: { type: string }
         format:
           type: string
-          enum: [mdx, stardict, slob, dsl, bgl, zim, wudict]
+          enum: [mdx, stardict, slob, dsl, bgl, zim, wmd, wudict]
         path:
           type: string
           description: The source file, or the text.db of a prepared dictionary.

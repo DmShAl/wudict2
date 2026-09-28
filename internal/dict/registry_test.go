@@ -361,3 +361,68 @@ func TestDiscoverHidesAbbrevCompanion(t *testing.T) {
 		t.Error("an explicit companion path must remain openable")
 	}
 }
+
+type fakeReader struct{ Reader }
+
+// TestSniffedFormat: a suffix registered with RegisterSniffed is a dictionary
+// only when its content says so, everywhere a path is resolved - discovery,
+// explicit open, the ingest Reader and the "open with" test - and a stricter
+// name-only suffix of the same family wins without the sniff being asked.
+func TestSniffedFormat(t *testing.T) {
+	var asked []string
+	RegisterFormat(".strict.sniftest", func(path string) (Dictionary, error) { return fakeDict{}, nil })
+	RegisterSniffed(".sniftest",
+		func(path string) bool {
+			asked = append(asked, filepath.Base(path))
+			b, _ := os.ReadFile(path)
+			return strings.HasPrefix(string(b), "YES")
+		},
+		func(path string) (Dictionary, error) { return fakeDict{}, nil },
+		func(path string) (Reader, error) { return fakeReader{}, nil })
+
+	dir := t.TempDir()
+	for name, body := range map[string]string{
+		"dict.sniftest":         "YES a dictionary",
+		"readme.sniftest":       "# just notes",
+		"named.strict.sniftest": "no content test",
+	} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	yes, no, strict := filepath.Join(dir, "dict.sniftest"), filepath.Join(dir, "readme.sniftest"), filepath.Join(dir, "named.strict.sniftest")
+
+	got, err := Discover(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var names []string
+	for _, p := range got {
+		names = append(names, filepath.Base(p))
+	}
+	if strings.Join(names, ",") != "dict.sniftest,named.strict.sniftest" {
+		t.Errorf("Discover = %v, want the claimed file and the strict one", names)
+	}
+	if _, err := Open(yes); err != nil {
+		t.Errorf("Open(claimed) = %v", err)
+	}
+	if _, err := Open(no); err == nil {
+		t.Error("Open(unclaimed) succeeded")
+	}
+	if _, err := OpenReader(yes); err != nil {
+		t.Errorf("OpenReader(claimed) = %v", err)
+	}
+	if _, err := OpenReader(no); err == nil {
+		t.Error("OpenReader(unclaimed) succeeded")
+	}
+	if !IsDictionaryFile(yes) || IsDictionaryFile(no) {
+		t.Error("IsDictionaryFile disagrees with the sniff")
+	}
+	asked = nil
+	if _, err := Open(strict); err != nil {
+		t.Errorf("Open(strict) = %v", err)
+	}
+	if len(asked) != 0 {
+		t.Errorf("the strict suffix consulted the sniff: %v", asked)
+	}
+}

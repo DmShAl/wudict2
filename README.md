@@ -19,6 +19,7 @@ Runs natively on [android](https://wuweidict.github.io/wudict/apps/android/), [m
 | Lingvo DSL | `.dsl`, `.dsl.dz`                   | UTF-8/16/32 auto-detected; `*.dsl.files.zip` resources; auto-indexed |
 | Babylon | `.bgl`                              | gzip block stream; source/target charset auto-detected (Latin / Cyrillic / CJK code pages); embedded images; indexed automatically on first open |
 | ZIM | `.zim`                              | Kiwix/Wikimedia offline archives; see https://library.kiwix.org
+| WuWeiDict markdown | `.wudict.md`, `.wudict.md.gz` | plain CommonMark, readable and editable in any editor; a `.md` whose first two lines are `# Title` and `wudict: 1` qualifies too; `<name>.wudict.files/` resources; auto-indexed; written by `wudict dump -format md` |
 | WuWeiDict | cache folder (`text.db`)            | wuDict's own SQLite-based format (see *Sharing*, below) |
 
 ## wuDict for Android

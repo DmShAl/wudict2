@@ -395,11 +395,21 @@ House style lives in the `internal/logx` package doc and is enforced by keeping 
 - **Levels**: `logx.V` verbose detail · `logx.Warn` real degradation · `logx.Status` progress on a slow foreground step · `logx.Progress`/`ClearLine` in-place counters, **suppressed when stderr is not a terminal** (they are for a human watching a wait, and their carriage returns collide with results on stdout).
 - **Startup prints the effective configuration** — dictionary folder, library (DB_DIR), config file in use, address, .spx decoder, indexing mode, and what is being served — each folder counted by what *it* contributed, then a single next-step line when there is something to do.
 
-## 6e. wudict markdown (D153) — specified, not implemented
+## 6e. wudict markdown (D154)
 
-- `.wudict.md`: one UTF-8 markdown file per dictionary (also packaged as `.wudict.md.gz`, read-only `.wudict.md.dz`, or a `.wudict.zip` bundle with its resources — spec §2.1), read as a format (id `wmd`) and written by `wudict dump -format md|markdown`. Normative spec: `docs/WUDICT-MARKDOWN.md`; canonical examples in `docs/wudict-markdown/examples/`.
-- Structure is a line-local scan (`# title`, `## headword` — nothing hides a `## ` line — and `key: value` fields: `alias:`, `see:`); bodies are CommonMark + raw HTML + pandoc attributes (spans, divs, block attribute lines), `{-}` bare paragraphs, sup/sub, strikeout, GFM tables, `{=html}` fences, `[[wikilinks]]` → `entry://` (only `%`, `#` and a leading `@` percent-encoded), DenDen ruby.
-- The writer maps HTML to the leanest markdown — markdown blocks, HTML tags wrapped around markdown, or a raw fence — and verifies every choice by reading it back (equivalence N); what cannot be verified stays raw and is reported. Invariants P1–P3 (spec §9).
+- `.wudict.md`, or a plain `.md` whose line 2 is `wudict: <version>`: one UTF-8 markdown file per dictionary, also
+  read as `.wudict.md.gz` or `.wudict.md.dz`. It is read as a format (id `wmd`) and written by
+  `wudict dump -format md -mode clean|html [-compress gz]`. Normative spec: `docs/WUDICT-MARKDOWN.md`.
+- Standard CommonMark + GFM tables, parsed by a stock parser.
+  - `# title`, `wudict: 1` and `key: value` header lines.
+  - Entries are the top-level `##` headings; adjacent `##` lines are one entry (headword, then aliases).
+  - `see: target` is a redirect to a target outside the dictionary.
+  - Links are standard `[t](entry://…)`.
+- The writer has two modes, chosen per dump:
+  - `html` (default): each body verbatim as one HTML block; nothing is lost.
+  - `clean`: a destructive cleanup to markdown primitives; if cleanup is not enough, it aborts with a hint to use
+    `html`.
+- There is no lossless-round-trip machinery: `html` keeps the HTML, `clean` is lossy by design.
 
 ## 7. Non-goals (v1)
 Writing/exporting formats other than wudict markdown (D153, the one sanctioned writer); entry editing; draego's `.db` as input (one-off migration script if ever needed); EPWING/etc. (BGL moved *into* scope in P10.)

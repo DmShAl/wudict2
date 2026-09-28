@@ -12,17 +12,23 @@ import (
 	"html"
 	"io"
 	"os"
+	"path"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/wuweidict/wudict/internal/dict"
+	"github.com/wuweidict/wudict/internal/format/wmd"
 	"github.com/wuweidict/wudict/internal/htmlref"
 	"github.com/wuweidict/wudict/internal/logx"
 	"github.com/wuweidict/wudict/internal/resource"
 	"github.com/wuweidict/wudict/internal/store"
 )
 
-// `wudict dump` writes one dictionary out as pyglossary's CSV: a two-column
+// `wudict dump` writes one dictionary out, as pyglossary's CSV (the default)
+// or as WuWeiDict markdown (-format md, dump_md.go).
+//
+// The CSV is a two-column
 // file whose leading rows are "#key","value" metadata and whose remaining rows
 // are word, definition and - when an entry has aliases - a third column of
 // alternates joined by commas. Resources go beside it in "<file>.csv_res",
@@ -40,12 +46,45 @@ import (
 
 func cmdDump(args []string) error {
 	fs := flag.NewFlagSet("dump", flag.ExitOnError)
-	var out string
-	fs.StringVar(&out, "o", "", "output folder for <name>.csv and its <name>.csv_res resources (created if missing)")
+	var out, format, modeFlag, compress, resFlag string
+	fs.StringVar(&out, "o", "", "output folder for the dump and its resources (created if missing)")
 	fs.StringVar(&out, "output", "", "long form of -o")
+	fs.StringVar(&format, "format", "csv", "csv, or md (WuWeiDict markdown)")
+	fs.StringVar(&modeFlag, "mode", "html", "md only: html (each article's HTML kept) or clean (markdown only, lossy)")
+	fs.StringVar(&compress, "compress", "", "md only: gz")
+	fs.StringVar(&resFlag, "resources", "all", "all, text (only .css, .js and other text files), or none")
 	fs.Parse(args)
 	if fs.NArg() != 1 || out == "" {
-		return fmt.Errorf("usage: wudict dump -o <outdir> <dictfile>")
+		return fmt.Errorf("usage: wudict dump [-format csv|md] [-mode html|clean] [-compress gz] [-resources all|text|none] -o <outdir> <dictfile>")
+	}
+	scope, err := parseResScope(resFlag)
+	if err != nil {
+		return err
+	}
+	md := false
+	switch strings.ToLower(format) {
+	case "csv":
+	case "md", "markdown":
+		md = true
+	default:
+		return fmt.Errorf("-format %q: want csv or md", format)
+	}
+	mode, err := wmd.ParseMode(modeFlag)
+	if err != nil {
+		return fmt.Errorf("-%v", err)
+	}
+	gz := false
+	switch strings.ToLower(compress) {
+	case "":
+	case "gz":
+		gz = true
+	default:
+		return fmt.Errorf("-compress %q: want gz", compress)
+	}
+	modeSet := false
+	fs.Visit(func(f *flag.Flag) { modeSet = modeSet || f.Name == "mode" })
+	if !md && (gz || modeSet) {
+		return fmt.Errorf("-mode and -compress are for -format md")
 	}
 	applyLibrarySettings()
 	src := fs.Arg(0)
@@ -54,24 +93,57 @@ func cmdDump(args []string) error {
 	if base == "" {
 		return fmt.Errorf("cannot derive an output name from %q: rename the file, or dump it from its library folder", src)
 	}
-	csvPath := filepath.Join(out, base+".csv")
-	resDir := csvPath + "_res" // pyglossary: the csv's own name plus "_res"
+	path := filepath.Join(out, base+".csv")
+	resDir := path + "_res" // pyglossary: the csv's own name plus "_res"
+	if md {
+		path = filepath.Join(out, base+wmd.Ext)
+		if gz {
+			path += ".gz"
+		}
+		resDir = filepath.Join(out, base+".wudict.files") // spec R2.3
+	}
 
 	// Said before anything is written, because after it is too late to be a
 	// warning. Named files, not a general caution: "will be overwritten" is
 	// only useful if you can tell whether it means yours.
 	if dirExists(out) {
-		fmt.Fprintf(os.Stderr, "%s already exists - %s and anything already in %s/ under the same name will be overwritten\n",
-			out, filepath.Base(csvPath), filepath.Base(resDir))
+		if scope == resNone {
+			fmt.Fprintf(os.Stderr, "%s already exists - %s will be overwritten\n", out, filepath.Base(path))
+		} else {
+			fmt.Fprintf(os.Stderr, "%s already exists - %s and anything already in %s/ under the same name will be overwritten\n",
+				out, filepath.Base(path), filepath.Base(resDir))
+		}
 	}
-	n, err := dumpEntries(src, out, csvPath)
-	if err != nil {
+	var n int
+	if md {
+		r, err := dumpMarkdown(src, out, path, base+".wudict", mode, gz)
+		if err != nil {
+			var cf *cleanFailure
+			if errors.As(err, &cf) {
+				printRawEntry(cf)
+			}
+			return err
+		}
+		n = r.articles
+		for _, c := range []struct {
+			n    int
+			what string
+		}{
+			{r.empty, "article with an empty body left out"},
+			{r.nameless, "entry without a headword left out"},
+			{r.repaired, "name or header value repaired (control characters, invalid UTF-8)"},
+		} {
+			if c.n > 0 {
+				fmt.Fprintf(os.Stderr, "  %d %s\n", c.n, c.what)
+			}
+		}
+	} else if n, err = dumpEntries(src, out, path); err != nil {
 		return err
 	}
-	size, _ := fileSize(csvPath)
-	fmt.Printf("%s → %s (%s)\n", plural(n, "entry", "entries"), csvPath, humanSize(size))
+	size, _ := fileSize(path)
+	fmt.Printf("%s → %s (%s)\n", plural(n, "entry", "entries"), path, humanSize(size))
 
-	files, bytes, err := dumpResources(src, resDir)
+	files, bytes, err := dumpResources(src, resDir, scope)
 	if err != nil {
 		return err
 	}
@@ -80,6 +152,36 @@ func cmdDump(args []string) error {
 	}
 	return nil
 }
+
+// resScope is which resources a dump writes (-resources).
+type resScope int
+
+const (
+	resAll  resScope = iota
+	resText          // stylesheets, scripts and other text an article uses directly
+	resNone          // the articles only
+)
+
+func parseResScope(s string) (resScope, error) {
+	switch strings.ToLower(strings.TrimSpace(s)) {
+	case "", "all":
+		return resAll, nil
+	case "text":
+		return resText, nil
+	case "none":
+		return resNone, nil
+	}
+	return 0, fmt.Errorf("-resources %q: want all, text or none", s)
+}
+
+// textExts are the resources -resources text keeps: text an article loads
+// as it is. Images - svg included - audio, video and fonts are media.
+var textExts = map[string]bool{
+	".css": true, ".js": true, ".mjs": true, ".json": true,
+	".html": true, ".htm": true, ".xml": true, ".txt": true,
+}
+
+func isTextResource(name string) bool { return textExts[strings.ToLower(path.Ext(name))] }
 
 // dumpBase names the output after the SOURCE FILE rather than after the
 // dictionary's own title: the title is free text that may be empty, may repeat
@@ -235,7 +337,10 @@ func writeInfoRows(w *csv.Writer, m dict.Meta) error {
 // A resource that cannot be read is reported and skipped rather than ending
 // the dump: the names come from a container that may be truncated or lying,
 // and 40,000 good files are not worth losing to one bad record.
-func dumpResources(src, resDir string) (files int, written int64, err error) {
+func dumpResources(src, resDir string, scope resScope) (files int, written int64, err error) {
+	if scope == resNone {
+		return 0, 0, nil // not even opened: for some formats that would mean preparing
+	}
 	d, err := dict.Open(src)
 	if err != nil {
 		return 0, 0, err
@@ -251,6 +356,9 @@ func dumpResources(src, resDir string) (files int, written int64, err error) {
 		}
 	}
 	names = resource.Filter(names) // a dump is for humans; .DS_Store is not
+	if scope == resText {
+		names = slices.DeleteFunc(names, func(n string) bool { return !isTextResource(n) })
+	}
 	if len(names) == 0 {
 		return 0, 0, nil
 	}

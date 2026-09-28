@@ -44,6 +44,7 @@ import (
 	_ "github.com/wuweidict/wudict/internal/format/mdx"      // register .mdx
 	_ "github.com/wuweidict/wudict/internal/format/slob"     // register .slob
 	_ "github.com/wuweidict/wudict/internal/format/stardict" // register .ifo
+	_ "github.com/wuweidict/wudict/internal/format/wmd"      // register .wudict.md (+ .md with a wudict: field)
 	_ "github.com/wuweidict/wudict/internal/format/zim"      // register .zim
 )
 
@@ -111,12 +112,22 @@ COMMANDS
                                           overwrite). -o names the output: a path
                                           (parents created), a directory, or "-"
                                           for stdout.
-  dump   -o <outdir> <dictfile>           Write the whole dictionary out as CSV in
-                                          pyglossary's import/export layout, so any
-                                          format its converter writes is reachable
-                                          from here. Resources are unpacked beside
-                                          it into <name>.csv_res. -output is the
-                                          long form of -o.
+  dump   [-format csv|md] [-mode html|clean] [-compress gz] [-resources all|text|none] -o <outdir> <dictfile>
+                                          Write the whole dictionary out. csv (the
+                                          default) is pyglossary's import/export
+                                          layout, so any format its converter writes
+                                          is reachable from here; resources are
+                                          unpacked beside it into <name>.csv_res.
+                                          md writes WuWeiDict markdown,
+                                          <name>.wudict.md, resources in
+                                          <name>.wudict.files: -mode html (default)
+                                          keeps each article's HTML; -mode clean
+                                          keeps only what markdown can write (lossy),
+                                          and stops at an article it cannot. -compress gz
+                                          writes <name>.wudict.md.gz. -resources
+                                          text keeps only .css, .js and other text
+                                          files; none writes the articles alone.
+                                          -output is the long form of -o.
   ingest [-full] [-headwords] [-contains] [<dictfile|folder…>]
                                           Prepare dictionaries into the library:
                                           <db-dir>/<dictionary name>/text.db (+ info.txt).
