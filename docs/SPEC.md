@@ -397,6 +397,20 @@ House style lives in the `internal/logx` package doc and is enforced by keeping 
 
 ## 6e. wudict markdown (D154)
 
+- **The wudict howto** (`internal/howto`, D154 Am. 5): the app's guide, shipped as a wudict markdown dictionary
+  embedded in the binary.
+  - At start the CLI writes it to `<config dir>/builtin/`, rewriting only a file whose content differs, and
+    passes it to the registry (`server.WithBuiltin`).
+  - It is listed after the folder scan under the fixed id `wudict-howto`, so `/browse?dict=wudict-howto` works
+    everywhere, and it is flagged `builtin` in `/api/dicts`. It cannot be removed, and its library folder is never
+    listed as imported.
+  - It stands down while a dictionary folder holds a file of its name: the user's copy, which
+    `POST /api/howto` (the setup page's link) writes into the import folder. The copy takes over the fixed id, so
+    the guide's own links still reach it. It is not flagged `builtin`; it is the user's file.
+  - Counts that mean "the user's library" exclude it (`UserCount`). The index page serves the app, not the setup
+    page, when it is all there is, and opens it on `wudict intro` under an "Add dictionaries" line.
+  - Every headword starts with `wudict `, so it never answers a lookup meant for the user's own dictionaries.
+
 - `.wudict.md` or a plain `.md`, either one a dictionary only when its line 2 is `wudict: <version>` (the gate,
   whatever the name, in folder scans and intake alike): one UTF-8 markdown file per dictionary, also read as
   `.wudict.md.gz` or `.wudict.md.dz`. It is read as a format (id `wmd`) and written by

@@ -29,6 +29,7 @@ import (
 
 	"github.com/wuweidict/wudict/internal/config"
 	"github.com/wuweidict/wudict/internal/dict"
+	"github.com/wuweidict/wudict/internal/howto"
 	"github.com/wuweidict/wudict/internal/htmlref"
 	"github.com/wuweidict/wudict/internal/intake"
 	"github.com/wuweidict/wudict/internal/logx"
@@ -1407,8 +1408,19 @@ Hint: pick another port with --port, e.g.:  wudict --port %s
 	// beside the config file in effect, so a portable install carries both and
 	// --config re-points both. Loaded BEFORE the registry: Warm skips disabled
 	// dictionaries, and it starts inside NewRegistry.
-	reg, err := server.NewRegistry(cfg.DictDirs, cfg.UseCached,
-		server.WithPrefs(server.LoadPrefs(statePath(cfgFile))))
+	regOpts := []server.Option{server.WithPrefs(server.LoadPrefs(statePath(cfgFile)))}
+	// The wudict howto, the guide the app ships as a dictionary: written
+	// beside the config in effect (rewritten only when this build's guide
+	// differs), and listed with the user's dictionaries. Without a place to
+	// write it, the app starts without it.
+	if d := userDir(cfgFile); d != "" {
+		if p, err := howto.Install(filepath.Join(d, "builtin")); err != nil {
+			logx.Warn("the wudict howto is not available: %v", err)
+		} else {
+			regOpts = append(regOpts, server.WithBuiltin(server.Builtin{ID: howto.ID, Path: p}))
+		}
+	}
+	reg, err := server.NewRegistry(cfg.DictDirs, cfg.UseCached, regOpts...)
 	if err != nil {
 		return fmt.Errorf("scanning %s: %w", strings.Join(cfg.DictDirs, ", "), err)
 	}

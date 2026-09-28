@@ -83,14 +83,17 @@ var cleanCases = []struct{ name, html, md, back string }{
 	{"code span with backticks", "<code>a`b</code> <code>`x</code>", "``a`b`` `` `x ``",
 		"<p><code>a`b</code> <code>`x</code></p>\n"},
 	{"empty body", `<div> </div><!-- only a comment -->`, "", ""},
+	{"kbd is kept as inline HTML", `Press <kbd>☰</kbd> then <kbd class="k">Rescan *all*</kbd>`,
+		"Press <kbd>☰</kbd> then <kbd>Rescan \\*all\\*</kbd>",
+		"<p>Press <kbd>☰</kbd> then <kbd>Rescan *all*</kbd></p>\n"},
 	{"space at the edges of markup goes outside it",
 		`a<b> x </b>y <a href="entry://upset"> at upset</a>, z<sup> 2</sup> q<b> </b>r a<a href="entry://b"><i> b</i></a>`,
 		"a **x** y [at upset](entry://upset), z <sup>2</sup> q r a [*b*](entry://b)",
 		"<p>a <strong>x</strong> y <a href=\"entry://upset\">at upset</a>, z <sup>2</sup> q r a <a href=\"entry://b\"><em>b</em></a></p>\n"},
 	{"a relative href that names no file is a headword (R6.9)",
-		`<a href="cooking apple#e67_cooking">c</a> <a href="apple%20pie">p</a> <a href="a.MP3?v=2">s</a> <a href="#top">t</a> <a href="%20#x">w</a>`,
-		"[c](<entry://cooking apple#e67_cooking>) [p](<entry://apple pie>) [s](a.MP3?v=2) [t](#top) [w](< #x>)",
-		"<p><a href=\"entry://cooking%20apple#e67_cooking\">c</a> <a href=\"entry://apple%20pie\">p</a> <a href=\"a.MP3?v=2\">s</a> <a href=\"#top\">t</a> <a href=\"%20#x\">w</a></p>\n"},
+		`<a href="cooking apple#e67_cooking">c</a> <a href="apple%20pie">p</a> <a href="a.MP3?v=2">s</a> <a href="#top">t</a> <a href="%20#x">w</a> <a href="/browse?dict=x">b</a> <a href="Res/y">r</a>`,
+		"[c](<entry://cooking apple#e67_cooking>) [p](<entry://apple pie>) [s](a.MP3?v=2) [t](#top) [w](< #x>) [b](/browse?dict=x) [r](Res/y)",
+		"<p><a href=\"entry://cooking%20apple#e67_cooking\">c</a> <a href=\"entry://apple%20pie\">p</a> <a href=\"a.MP3?v=2\">s</a> <a href=\"#top\">t</a> <a href=\"%20#x\">w</a> <a href=\"/browse?dict=x\">b</a> <a href=\"Res/y\">r</a></p>\n"},
 }
 
 // styledCases convert with a display table (R6.6): what the dictionary's

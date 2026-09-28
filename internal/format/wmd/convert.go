@@ -917,7 +917,7 @@ func (w *inline) node(n *html.Node) {
 		} else {
 			w.syntax("<" + tag + ">" + inner + "</" + tag + ">")
 		}
-	case atom.Sup, atom.Sub, atom.U, atom.Small, atom.Del, atom.S, atom.Strike, atom.Ins:
+	case atom.Sup, atom.Sub, atom.U, atom.Small, atom.Del, atom.S, atom.Strike, atom.Ins, atom.Kbd:
 		tag := n.Data
 		if n.DataAtom == atom.S || n.DataAtom == atom.Strike {
 			tag = "del"
@@ -929,7 +929,7 @@ func (w *inline) node(n *html.Node) {
 			w.syntax("<" + tag + ">" + inner + "</" + tag + ">")
 		}
 		w.hoist(sub, false)
-	case atom.Code, atom.Kbd, atom.Samp, atom.Tt:
+	case atom.Code, atom.Samp, atom.Tt:
 		t := strings.Join(strings.FieldsFunc(textContent(n), isSpace), " ")
 		if t == "" {
 			return
@@ -1070,12 +1070,15 @@ func entryRef(rest string) string {
 }
 
 // crossRef reports a link href that is a cross-reference without a lookup
-// scheme (R5.4, R6.9): relative, not only a fragment or a query, and naming no
-// file - the rule the server reads article links by (dict.IsAssetName). It is
-// written as the lookup link it stands for.
+// scheme (R5.4, R6.9): relative, not rooted (`/…`, a page of the host), not
+// only a fragment or a query, not under `res/` or `assets/`, and naming no
+// file - the rule the clients follow links by (index.html, frame.js) and the
+// server reads them by (dict.IsAssetName). It is written as the lookup link
+// it stands for.
 func crossRef(v string) (string, bool) {
 	v = strings.Trim(v, " \t\n\r\f")
-	if v == "" || v[0] == '#' || v[0] == '?' || schemeRef(v) || strings.HasPrefix(v, "//") || dict.IsAssetName(v) {
+	if v == "" || v[0] == '#' || v[0] == '?' || v[0] == '/' || schemeRef(v) || dict.IsAssetName(v) ||
+		hasPrefixFold(v, "res/") || hasPrefixFold(v, "assets/") {
 		return "", false
 	}
 	if target, _, _ := strings.Cut(v, "#"); trimWS(dec(target)) == "" {

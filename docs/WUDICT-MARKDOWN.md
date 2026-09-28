@@ -156,8 +156,9 @@ resulting document. It does no line scanning of its own beyond R3.1.
   .webp .svg .bmp .ico .avif .mp3 .ogg .oga .wav .spx .m4a .opus .flac .aac .mp4 .webm .ogv .mov .m4v .3gp .avi
   .wmv .mkv .mpg .mpeg .asf .flv .pcx .dcx .wmf .emf .tif .tiff .pdf .woff .woff2 .ttf .otf .eot .json .xml
   .txt`. It resolves in the container (R2.3). A leading `./` or `/` is ignored, `#…` and `?…` are cut, and the
-  rest is percent-decoded. Any other relative `href` - not only a `#…` or `?…` - names a headword, and is read
-  as a lookup link (R5.2).
+  rest is percent-decoded. A rooted `href` (`/…`) is a page of the host, and one under `res/` or `assets/` is the
+  host's too. Any other relative `href` - not only a `#…` or `?…` - names a headword, and is read as a lookup link
+  (R5.2).
 
 ## 6. Writer
 
@@ -224,7 +225,7 @@ resulting document. It does no line scanning of its own beyond R3.1.
   | `p`; `div`, `section`, `article` and other block containers (unwrapped) | paragraph breaks |
   | `br` | `\` + LF inside a paragraph (`<br>` + LF right after a text `\`); dropped at its end; doubled ones merge |
   | `em`, `i` · `strong`, `b` | `*x*` · `**x**` when the content starts and ends with a letter, digit or mark, holds no unescaped `*` and does not follow a `*`; otherwise inline `<em>` or `<strong>` |
-  | `sup`, `sub`, `u`, `small`, `del` (`s` and `strike` become `del`) | the same tag as inline HTML, without attributes |
+  | `sup`, `sub`, `u`, `small`, `del` (`s` and `strike` become `del`), `kbd` | the same tag as inline HTML, without attributes |
   | `code` · `pre` > `code` | code span (inline `<code>` right after a backtick) · fenced code block (info from `language-X`) |
   | `a[href]` | `[text](dest "title")`, `dest` in the canonical form of R6.9; an `a` without `href` is unwrapped |
   | `img[src]` | `![alt](src "title")` |
@@ -324,6 +325,10 @@ error (R6.8).
 - **R9.1** Files are untrusted. Raw HTML, event attributes and `javascript:` links pass through the reader, so
   hosts MUST sanitize or isolate article HTML before display.
 - **R9.2** Decompression is bounded, and resource resolution never leaves the container (R2.3).
+- **R9.3** Parsing time is not bounded by this spec. Stock CommonMark parsers can be superlinear on hostile shapes
+  (measured on goldmark v2.1.5: list markers nested on one line, `- - - … x`, 40,000 deep in 2.3 s; 40,000
+  reference definitions in one entry in 0.5 s, both quadratic). A reader MAY refuse such input; wudict does not
+  guard against it.
 
 ## 10. Examples
 

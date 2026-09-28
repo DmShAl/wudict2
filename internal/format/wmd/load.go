@@ -26,6 +26,10 @@ func hasSuffixFold(s, suffix string) bool {
 	return len(s) >= len(suffix) && strings.EqualFold(s[len(s)-len(suffix):], suffix)
 }
 
+func hasPrefixFold(s, prefix string) bool {
+	return len(s) >= len(prefix) && strings.EqualFold(s[:len(prefix)], prefix)
+}
+
 func compressed(path string) bool { return hasSuffixFold(path, ExtGz) || hasSuffixFold(path, ExtDz) }
 
 // decode applies R2.1: a leading BOM removed, CRLF and lone CR turned into LF,

@@ -80,6 +80,11 @@ func (r *Registry) Remove(id string, dropPrepared, dropSource bool) (removal, er
 	if err != nil {
 		return rep, err
 	}
+	if e.builtin {
+		// The app would write it again at the next start. Unticking it is
+		// how it stops being searched.
+		return rep, fmt.Errorf("%s is part of wudict and cannot be removed; untick it to stop searching it", filepath.Base(e.Path))
+	}
 	// Blocks (and is blocked by) an ingest on this dictionary: deleting the
 	// folder a rebuild is writing into would leave the rebuild finishing into
 	// nowhere.

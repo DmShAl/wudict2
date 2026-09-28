@@ -203,7 +203,7 @@ func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 		Prepared:        len(lib),
 		UseCached:       s.reg.UseCached(),
 		ConfigPath:      s.ConfigPath,
-		Total:           s.reg.Count(),
+		Total:           s.reg.UserCount(),
 		DictDirOrigin:   s.DictDirOrigin,
 		DictDirEditable: s.DictDirEditable,
 		Effective:       s.Effective,

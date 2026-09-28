@@ -344,6 +344,10 @@ iframe.article{width:100%;border:0;display:block;background:var(--wd-article-bg,
    searched for, and that has to be read BEFORE the articles it explains. */
 .morphnote{margin-top:0;margin-bottom:var(--sp-1)}
 .empty{padding-top:var(--sp-5);text-align:center;color:var(--fg-faint)}
+/* The one line above the wudict howto while it is all there is (welcome). */
+#welcome{margin:.6em 0;padding:.55em .8em;border:1px solid var(--line);border-radius:6px;
+  background:var(--accent-soft);color:var(--fg)}
+#welcome a{color:var(--link);font-weight:600}
 .empty svg path{fill:var(--line)}
 /* the search bar is inert until at least one dictionary is usable */
 input:disabled,select:disabled{opacity:.55;cursor:not-allowed}
@@ -2257,7 +2261,10 @@ function provenance(d){
      the machine running wudict, and from a remote browser only when
      ALLOW_REMOTE_DELETE is on. Never a platform test done here: the page does
      not know what it is running on, and must not guess. */
-  const canDel=!!(cfgInfo&&cfgInfo.canDelete);
+  // The wudict howto ships with the app and is written again at every start:
+  // there is nothing to remove, and the checkbox is how it stops being
+  // searched.
+  const canDel=!!(cfgInfo&&cfgInfo.canDelete)&&!d.builtin;
   if(canDel)rows.push(`<div class="rmwrap">${rmTrigger()}</div>`);
   // The flat one-line form has nowhere to put a control, so a card that can be
   // deleted always gets the disclosure - even when the body holds nothing else.
@@ -5228,7 +5235,26 @@ $("styler").addEventListener("keydown",e=>{
 // boot screen over. The config comes alongside rather than after, because the
 // cards need its home prefix to render paths as ~/… on the FIRST draw; run
 // concurrently it costs no extra latency, and it cannot reject.
-Promise.all([loadPrefs(),loadConfig(),loadUserCSS()]).then(loadDicts).then(applyURL);
+/* The empty library is the one moment the app has the reader's whole
+   attention and nothing of theirs to show. So it shows its own: the wudict
+   howto, opened on its intro - a real search, answered by a real dictionary,
+   which is the proof no sentence about "instant search" could be - under one
+   line that says what is missing and the one place that fixes it. Only on a
+   plain start: a link or a bookmark with a word in it asked for that word. */
+function welcome(){
+  if(new URLSearchParams(location.search).get("q"))return;
+  const guide=dicts.find(d=>d.builtin);
+  if(!guide||dicts.some(d=>!d.builtin))return;
+  if(!$("welcome")){
+    const w=document.createElement("div");
+    w.id="welcome";
+    w.innerHTML='No dictionaries of your own yet — <a href="/setup">Add dictionaries</a>. '+
+      'Meanwhile, here is wudict\u2019s own guide.';
+    $("out").before(w);
+  }
+  searchFor("wudict intro",{scope:guide.id,record:"replace"});
+}
+Promise.all([loadPrefs(),loadConfig(),loadUserCSS()]).then(loadDicts).then(()=>{applyURL();welcome()});
 </script>
 </body>
 </html>

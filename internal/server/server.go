@@ -330,7 +330,9 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-cache")
 	// first-run: no dictionaries yet → serve the setup page instead. No
 	// validator here: this body is a function of registry state that nothing
-	// versions, so an ETag would be a promise we cannot keep.
+	// versions, so an ETag would be a promise we cannot keep. The wudict
+	// howto counts: with it listed the app has something to show, and the
+	// page opens on it instead, with the way to add dictionaries on top.
 	if s.reg.Count() == 0 {
 		_, _ = io.WriteString(w, setupPage(s.reg.Dirs(), 0))
 		return
@@ -415,7 +417,7 @@ func (s *Server) pageFor(tag string) ([]byte, string) {
 func (s *Server) handleSetupPage(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-cache")
-	_, _ = io.WriteString(w, setupPage(s.reg.Dirs(), s.reg.Count()))
+	_, _ = io.WriteString(w, setupPage(s.reg.Dirs(), s.reg.UserCount()))
 }
 
 // setupPage renders the folder chooser/editor. The intro names a single
@@ -472,13 +474,18 @@ func htmlEscape(s string) string {
 // - the ones the setup page offers to use, and the basis of the USE_CACHED
 // choice. Reading it never enrolls them: listing is not consent.
 func (s *Server) handleLibrary(w http.ResponseWriter, r *http.Request) {
-	entries, err := store.Library()
+	all, err := store.Library()
 	if err != nil {
 		httpErr(w, 500, "reading library: %v", err)
 		return
 	}
-	if entries == nil {
-		entries = []store.LibEntry{}
+	// The wudict howto's own library folder is the app's, not something the
+	// user imported: listing it under "previously imported" would say so.
+	entries := []store.LibEntry{}
+	for _, e := range all {
+		if !s.reg.IsBuiltin(e.Source) {
+			entries = append(entries, e)
+		}
 	}
 	writeJSON(w, map[string]any{
 		"dir":       store.DefaultDBDir(),
@@ -530,7 +537,7 @@ func (s *Server) handleSetup(w http.ResponseWriter, r *http.Request) {
 			out["error"] = err.Error()
 		} else {
 			out["saved"] = true
-			out["found"] = s.reg.Count()
+			out["found"] = s.reg.UserCount()
 		}
 		writeJSON(w, out)
 		return
@@ -686,6 +693,10 @@ type dictInfo struct {
 	DBSize   int64    `json:"dbSize,omitempty"`    // bytes of text.db - what the indexes actually cost
 	MediaSz  int64    `json:"mediaSize,omitempty"` // bytes of media.db
 	HasMedia bool     `json:"hasMedia,omitempty"`  // packable binary resources exist (drives "pack media")
+
+	// Builtin: shipped with the app (the wudict howto), not added by the user.
+	// It cannot be removed, and a library of builtins alone is an empty one.
+	Builtin bool `json:"builtin,omitempty"`
 }
 
 // dictMsg is one NDJSON line of /api/dicts:
@@ -772,6 +783,7 @@ func (s *Server) dictInfoFor(e *entry) dictInfo {
 		}
 	}
 	addProvenance(&info, e.Path)
+	info.Builtin = e.builtin
 	if e.noPackableMedia() {
 		info.HasMedia = false // a prior pack found nothing - stop offering it
 	}

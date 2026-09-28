@@ -93,4 +93,20 @@ The reference projects cited below (`pyglossary/…`, `mdict-go-web/…`, `draeg
   written to a temporary file and renamed, resources in `<base>.wudict.files/`. A `clean` failure aborts: the raw
   entry goes to stdout, and the error with the exact `-mode html` command to stderr.
 - F22 (done) — wudict never emits `bword:`. `bword:` is Babylon Ltd.'s proprietary cross-reference scheme, from its BGL glossaries and Babylon Builder projects (late 1990s); no public RFC-style specification exists, only the behaviour open-source dictionary readers reverse-engineered and preserved. Emitters switched to `entry://`: CSV dump redirect anchors, DSL `[ref]`/`<<ref>>` (dsl reader 2), ZIM `entryRef` (zim reader 2); prepared dictionaries get the stale/rebuild offer, never a forced rebuild. A dictionary's own `bword:` links are stored as found and respelled on every way out by `htmlref.CanonRef`/`CanonLinks` (`bword:[//]w` → `entry://w`, `@sub` → `entry:@sub`): the server's article rewrite (so BGL id links like `bword://E310420` too), `lookup -format raw`, and the CSV dump of both a source and a prepared `text.db`. Resolvers (`parseRef` in `index.html`/`frame.js`) keep accepting `bword:`. Targets are built by `htmlref.EntryHref` (`%`, `#`, controls and a leading `@` percent-encoded), so `[ref]C#[/ref]` links to `C%23`, not to `C` with an empty fragment (dsl reader 3, zim reader 3).
+- **The wudict howto** (`internal/howto/wudict-howto.wudict.md`) is the format's standing proof. `howto_test.go`
+  checks that it:
+  - passes the gate and reads without a warning;
+  - keeps every headword under `wudict `;
+  - resolves every `entry://` link to one of its headwords, and links only to app pages (`/browse`, `/setup`,
+    `/lemmas`);
+  - ships every image it shows and shows every image it ships;
+  - comes back byte for byte from `wudict dump -mode clean`.
+
+  Write it in that canonical form: one line per paragraph; bold and italic that start and end with a letter
+  (punctuation outside); `<kbd>` for controls.
+- **Known limit (R9.3, accepted 2026-09-28):** stock goldmark is quadratic on list markers nested on one line
+  (`- - - … x`: 40k deep = 2.3 s) and on tens of thousands of reference definitions in one entry (40k = 0.5 s);
+  the reader parses each chunk about twice. No guard: a crafted file in a dictionary folder can hold its first
+  open (the auto-prepare) for minutes. Every other shape measured (brackets, emphasis, backticks, `<`, quotes,
+  ordered lists, headings, `##` inside code or HTML) scales linearly.
 - Tests: examples ≡ spec, written and read; header and entry rules; chunking invisible (test + differential fuzz); clean fixed-point fuzz; names round trip; folding; idempotence in both modes; CLI round trip, gzip determinism, resources; reader golden; `-race`.

@@ -150,6 +150,10 @@ label.keep em{font-style:normal;color:var(--faint);font-size:12.5px}
     <button type="button" id="dropJob" class="btn ghost">Cancel</button>
   </div>
   <div id="impMsg"></div>
+  <!-- The guide as a file of the user's own: proof that a dictionary can be a
+       text file they write, one click from here. Named by what it does. -->
+  <p class="formats"><a href="#" id="howtoCopy">Put the wudict howto in this folder</a>
+     — wudict's own guide, as a file you can open in any text editor and change.</p>
 </div>
 
 <div id="libSection" class="hidden">
@@ -559,6 +563,18 @@ async function impCancel(){
   impSay("");
 }
 
+/* Copies the guide into the folder above (POST /api/howto); the copy then
+   stands in for the built-in guide, and the server has already rescanned. */
+async function howtoCopy(e){
+  e.preventDefault();
+  let r;
+  try{ r=await fetch("/api/howto",{method:"POST"}) }
+  catch(_){ impSay("✕ wudict is not answering","err");return }
+  const j=await r.json().catch(()=>({}));
+  if(!r.ok){impSay("✕ "+(j.error||("error "+r.status)),"err");return}
+  impSay("✓ Added "+j.path+" — edit it, then press Rescan folders to see your changes","ok");
+}
+
 function wireIntake(dir){
   if(!dir)return; // nowhere to install into yet: the folder above comes first
   $("addDir").textContent=dir;
@@ -569,6 +585,7 @@ function wireIntake(dir){
   $("url").addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();impFetch()}});
   $("install").addEventListener("click",impInstall);
   $("dropJob").addEventListener("click",impCancel);
+  $("howtoCopy").addEventListener("click",howtoCopy);
   const d=$("drop");
   // dragover must be cancelled or the browser navigates to the file instead,
   // which on a drop of a 2 GB zip is a download of it.
