@@ -15,10 +15,11 @@ Type `wudict help` in the search box for quick access, and [browse](/browse?dict
 
 > *Quick actions*
 
-- [Browse this guide](/browse?dict=wudict-howto)
+- [Browse](/browse?dict=wudict-howto) all entries in this guide
 - [Add dictionaries](/setup)
-- [Add/remove morphology files](/lemmas)
-- [Explore the dictionary panel <kbd>☰</kbd>](<entry://wudict panel>)
+- Add/remove [morphology files](/lemmas)
+- Explore the [dictionary panel <kbd>☰</kbd>](<entry://wudict panel>)
+- Discover [wudict markdown](<entry://wudict markdown>) (this howto is written in [↗ it](https://github.com/wuweidict/wudict/blob/master/internal/howto/wudict-howto.wudict.md))
 
 > *Wudict features*
 
@@ -37,15 +38,14 @@ Type `wudict help` in the search box for quick access, and [browse](/browse?dict
 
 📱 Android only · 💻 desktop only · everything else works on both.
 
-| Control | What it does |
-| --- | --- |
-| search box | type a word; results stream in as each dictionary answers |
-| <kbd>starts with</kbd> | the [search mode](<entry://wudict search>): starts with, exact, contains, full-text |
-| <kbd>All dictionaries</kbd> | search everything, one dictionary, or a group: a language, a language pair, a publisher |
-| <kbd>◐</kbd> | theme: light, dark, automatic |
-| <kbd>⇔</kbd> | wide layout |
-| <kbd>⊞</kbd> | expand every result |
-| <kbd>☰</kbd> | the [panel](<entry://wudict panel>): your dictionaries and settings |
+| Control | What it does                                                                                   |
+| --- |------------------------------------------------------------------------------------------------|
+| <kbd>starts with</kbd> | the [search mode](<entry://wudict search>): starts with, exact, contains, full-text            |
+| <kbd>All dictionaries</kbd> | search everything, a specific dictionary, a language or language pair, a publisher |
+| <kbd>◐</kbd> | theme: light, dark, automatic                                                                  |
+| <kbd>⇔</kbd> | wide layout                                                                                    |
+| <kbd>⊞</kbd> | expand every result                                                                            |
+| <kbd>☰</kbd> | the [panel](<entry://wudict panel>): your dictionaries and settings                            |
 
 ### Quick Start
 
@@ -138,7 +138,7 @@ Each language is a small download (under 2 MB) and is used only for dictionaries
 ### Display options
 
 - ![](highlight.svg) <kbd>Highlight matches</kbd>: mark the words a [full-text](<entry://wudict full-text>) search found.
-- ![](speak.svg) <kbd>Read aloud</kbd>: select text in an article to hear it in a system voice.
+- ![](speak.svg) <kbd>Read aloud</kbd>: select text in an article to speak it using the OS's Text-to-speech engine. You can pick your preferred voice via the chevron next to the speaker icon (when the OS provides multiple voices for the detected language), see more details under [wudict Text-to-speech](<entry://wudict Text-to-speech>)
 - **Open first**, **Sort dictionaries**: see [wudict welcome](<entry://wudict welcome>).
 - **Group by**: which groups the dictionary picker offers (language, language pair, publisher, …).
 
@@ -265,6 +265,10 @@ Every search has its own address, so you can bookmark it: `/?q=word&mode=exact`.
 
 **Select text in an article and press the speaker icon that appear to hear it** in a system voice for the article's language. The TTS feature can be disabled via the ![](speak.svg) <kbd>Read aloud</kbd> in <kbd>☰</kbd>. A dictionary's own recordings play with a click on their speaker icon.
 
+To see in action, select the text below, and then then click the speaker icon to hear it read aloud by the system Text-to-speech engine:
+
+> For a moment, nothing happened. Then, after a second or so, nothing continued to happen.
+
 ***
 
 - [index](/browse?dict=wudict-howto)
@@ -287,7 +291,7 @@ Every search has its own address, so you can bookmark it: `/?q=word&mode=exact`.
 
 In <kbd>☰</kbd> → the dictionary → click 🗑 → <kbd>Remove…</kbd>, then choose what to delete: everything, only the index, or (once its media is packed) only the dictionary files. ❗️ There is no undo!
 
-To stop searching a dictionary without deleting anything, untick its checkbox instead.
+To exclude a dictionary from Search-All mode, just untick its checkmark in the dictionary panel <kbd>☰</kbd>.
 
 ***
 
@@ -296,13 +300,13 @@ To stop searching a dictionary without deleting anything, untick its checkbox in
 ## wudict android
 ## wudict mobile
 
-📱 **Look up a word from any app**: select it and pick <kbd>wuDict</kbd> in the selection menu, or share it to wuDict; the wuDict definition floats in a popup over the original app. To discard it, press Back or tap anywhere outside the popup.
+📱 **Look up a word from any app**: select it and pick <kbd>wuDict</kbd> in the selection menu, or share it to <kbd>wuDict</kbd>; the wuDict definition floats in a popup over the original app. To discard it, press **Back** or tap anywhere outside the popup.
 
 > NOTE: If, instead of a popup, you'd rather have wudict open in a full window, then long press the wudict icon in the launcher and select <kbd>wuDict Settings</kbd> and check the corresponding checkbox under **Look up in the full app**.
 
 - **Add dictionaries** by opening or sharing a file to wuDict: see [wudict add dictionaries](<entry://wudict add dictionaries>).
 - **Full screen**: long-tap the wuDict icon on the home screen → <kbd>Settings</kbd> → immersive mode, optionally edge to edge, into the camera cutout.
-- The keyboard hides when you scroll an article. Off screen, wuDict uses one core, to spare the battery.
+- The keyboard hides when you scroll an article. Off screen, wuDict uses one core, to avoid draining the battery.
 - `wudict://lookup?q=word` opens a lookup from automation apps and scripts.
 
 ***
@@ -311,7 +315,6 @@ To stop searching a dictionary without deleting anything, untick its checkbox in
 
 ## wudict desktop
 ## wudict computer
-## wudict keyboard
 
 💻 **wudict runs in your browser**, at `localhost:6888`, as a small program on your computer: a menu-bar icon on macOS, a tray icon on Windows. Nothing leaves the machine.
 
@@ -338,7 +341,7 @@ To stop searching a dictionary without deleting anything, untick its checkbox in
 <summary>An example</summary>
 
 ***
-
+- [↗ wudict markdown specification](https://github.com/wuweidict/wudict/blob/master/docs/WUDICT-MARKDOWN.md)
 - [index](/browse?dict=wudict-howto)
 
 ```markdown
@@ -384,10 +387,48 @@ For English language dictionaries the `en-en` prefix is optional, since wudict w
 <details>
 <summary>What is the format used for this dictionary and where can I see its source code?</summary>
 
-The wudict howto dictionary uses **wudict markdown** format, and you can build your own markdown dictionary using the example source at [wudict-howto.wudict.md](https://github.com/wuweidict/wudict/blob/master/internal/howto/wudict-howto.wudict.md)
+The wudict howto dictionary uses **wudict markdown** format, and you can build your own markdown dictionary using the example source at [↗ wudict-howto.wudict.md](https://github.com/wuweidict/wudict/blob/master/internal/howto/wudict-howto.wudict.md)
+
+also see [**`wudict markdown`**](<entry://wudict markdown>)
 
 </details>
 
+
+<details>
+<summary>Can I convert any dictionary in my collection to wudict markdown?</summary>
+
+The `wudict` binary on the desktop (windows/linux/mac) provides a `dump` command that can be used to export any dictionary to the **wudict markdown** format:
+
+```sh
+# with -mode html you get maximum fidelity with complex HTML rendered as markdown HTML blocks
+wudict dump -format md -mode html -o my-output-folder ldoce6.mdx
+
+# with -mode clean complex HTML is reduced to the subset that is allowd in markdown
+wudict dump -format md -mode clean -o my-output-folder ldoce6.mdx
+```
+
+By default all resources (media, .js, .css) are included in the export. You can control what gets included with the `-resources` flag. See `wudict dump --help` for details:
+
+```
+dump --help
+Usage of dump:
+  -compress string
+    	md only: gz
+  -format string
+    	csv, or md (wudict markdown) (default "csv")
+  -mode string
+    	md only: html (each article's HTML preserved) or clean (markdown only, lossy) (default "html")
+  -o string
+    	output folder for the dump and its resources (created if missing)
+  -output string
+    	long form of -o
+  -resources string
+    	all, text (only .css, .js and other text files), or none (default "all")
+```
+
+also see [**`wudict markdown`**](<entry://wudict markdown>)
+
+</details>
 ***
 
 - [index](/browse?dict=wudict-howto)
