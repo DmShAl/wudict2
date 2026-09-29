@@ -38,14 +38,14 @@ Type `wudict help` in the search box for quick access, and [browse](/browse?dict
 
 📱 Android only · 💻 desktop only · everything else works on both.
 
-| Control | What it does                                                                                   |
-| --- |------------------------------------------------------------------------------------------------|
-| <kbd>starts with</kbd> | the [search mode](<entry://wudict search>): starts with, exact, contains, full-text            |
+| Control | What it does |
+| --- | --- |
+| <kbd>starts with</kbd> | the [search mode](<entry://wudict search>): starts with, exact, contains, full-text |
 | <kbd>All dictionaries</kbd> | search everything, a specific dictionary, a language or language pair, a publisher |
-| <kbd>◐</kbd> | theme: light, dark, automatic                                                                  |
-| <kbd>⇔</kbd> | wide layout                                                                                    |
-| <kbd>⊞</kbd> | expand every result                                                                            |
-| <kbd>☰</kbd> | the [panel](<entry://wudict panel>): your dictionaries and settings                            |
+| <kbd>◐</kbd> | theme: light, dark, automatic |
+| <kbd>⇔</kbd> | wide layout |
+| <kbd>⊞</kbd> | expand every result |
+| <kbd>☰</kbd> | the [panel](<entry://wudict panel>): your dictionaries and settings |
 
 ### Quick Start
 
@@ -121,6 +121,8 @@ Each language is a small download (under 2 MB) and is used only for dictionaries
 - if the dictionary **title** contains a valid language code then that is used
 - if the dictionary parent folder is a valid language code such as `es` or `spa` then this will be used as the lemmatization language.
 - if none of the previous checks found a language code then English is used by default, which implies that for English dictionaries you do not need to rename your files or the parent subfolders to match `en` or `eng`.
+
+***
 
 - [index](/browse?dict=wudict-howto)
 
@@ -342,6 +344,7 @@ To exclude a dictionary from Search-All mode, just untick its checkmark in the d
 <summary>An example</summary>
 
 ***
+
 - [↗ wudict markdown specification](https://github.com/wuweidict/wudict/blob/master/docs/WUDICT-MARKDOWN.md)
 - [index](/browse?dict=wudict-howto)
 
@@ -390,10 +393,9 @@ For English language dictionaries the `en-en` prefix is optional, since wudict w
 
 The wudict howto dictionary uses **wudict markdown** format, and you can build your own markdown dictionary using the example source at [↗ wudict-howto.wudict.md](https://github.com/wuweidict/wudict/blob/master/internal/howto/wudict-howto.wudict.md)
 
-also see [**`wudict markdown`**](<entry://wudict markdown>)
+also see [<strong>`wudict markdown`</strong>](<entry://wudict markdown>)
 
 </details>
-
 
 <details>
 <summary>Can I convert any dictionary in my collection to wudict markdown?</summary>
@@ -427,9 +429,10 @@ Usage of dump:
     	all, text (only .css, .js and other text files), or none (default "all")
 ```
 
-also see [**`wudict markdown`**](<entry://wudict markdown>)
+also see [<strong>`wudict markdown`</strong>](<entry://wudict markdown>)
 
 </details>
+
 ***
 
 - [index](/browse?dict=wudict-howto)

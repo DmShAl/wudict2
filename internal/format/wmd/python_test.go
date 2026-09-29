@@ -18,11 +18,14 @@ import (
 	"github.com/wuweidict/wudict/internal/htmlref"
 )
 
-// The pyglossary plugin (tools/pyglossary/wudict_md) ports this package to
-// Python, and its wumd.py must write byte for byte what this package writes,
-// and read the same entries. This runs it over every input the Go tests use:
-// the clean and html tables, the fuzz seeds, the spec's examples and the
-// reader's test documents. Without python3 and markdown-it-py it skips.
+// The pyglossary plugin (wudict_md) ports this package to Python, and its
+// wumd.py must write byte for byte what this package writes, and read the same
+// entries. This runs it over every input the Go tests use: the clean and html
+// tables, the fuzz seeds, the spec's examples and the reader's test documents.
+//
+// The plugin is not part of this repository, so the check is opt-in:
+// WMD_PY_PORT names the plugin's directory (the one holding conformance.py).
+// Unset, or without python3 and markdown-it-py, it skips.
 //
 // WMD_PY_CORPUS may name a WuWeiDict markdown file whose bodies are added as
 // inputs - a dump of a real dictionary is the realistic test - and
@@ -43,6 +46,15 @@ type pyDoc struct {
 }
 
 func TestPythonPort(t *testing.T) {
+	port := os.Getenv("WMD_PY_PORT")
+	if port == "" {
+		t.Skip("WMD_PY_PORT not set: the Python port is not in this repository")
+	}
+	script := filepath.Join(port, "conformance.py")
+	if _, err := os.Stat(script); err != nil {
+		// Set but wrong is a mistake in the run, not an absent optional tool.
+		t.Fatalf("WMD_PY_PORT: %v", err)
+	}
 	py, err := exec.LookPath("python3")
 	if err != nil {
 		t.Skip("python3 not on PATH")
@@ -153,7 +165,7 @@ func TestPythonPort(t *testing.T) {
 	if err := os.WriteFile(in, b, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	out, err := exec.Command(py, "../../../tools/pyglossary/wudict_md/conformance.py", in).CombinedOutput()
+	out, err := exec.Command(py, script, in).CombinedOutput()
 	if err != nil {
 		t.Fatalf("the Python port differs:\n%s", out)
 	}
