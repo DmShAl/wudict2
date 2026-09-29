@@ -307,6 +307,7 @@ To exclude a dictionary from Search-All mode, just untick its checkmark in the d
 - **Add dictionaries** by opening or sharing a file to wuDict: see [wudict add dictionaries](<entry://wudict add dictionaries>).
 - **Full screen**: long-tap the wuDict icon on the home screen → <kbd>Settings</kbd> → immersive mode, optionally edge to edge, into the camera cutout.
 - The keyboard hides when you scroll an article. Off screen, wuDict uses one core, to avoid draining the battery.
+- **Reading apps**: in the reader's dictionary settings, choose wuDict, or a dictionary wuDict answers for: *ColorDict*/*GoldenDict*, *Aard 2*, *Lingvo*, *Fora* or *Dictan*. In Moon+ Reader, a *Customized* dictionary with the URL `wudict://lookup?q=%s` also works.
 - `wudict://lookup?q=word` opens a lookup from automation apps and scripts.
 
 ***
