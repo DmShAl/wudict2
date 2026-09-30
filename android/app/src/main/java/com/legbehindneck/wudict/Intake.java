@@ -159,7 +159,7 @@ final class Intake {
     static boolean onNewIntent(Activity a, Intent intent) {
         if (intent == null) return false;
         String url = intent.getStringExtra(EXTRA_URL);
-        if (isURL(url)) {
+        if (isLinks(url)) {
             // Consumed, not merely read: MainActivity is singleTask and keeps
             // the intent that started it, so an activity recreated later would
             // otherwise start the same download a second time.
@@ -305,6 +305,27 @@ final class Intake {
         } catch (RuntimeException e) {
             return false;
         }
+    }
+
+    /**
+     * Whether shared text is links to install rather than words to look up:
+     * one link, or a list of them - the shape of a list file, one per line,
+     * "#" lines allowed. Prose with a link in it stays a lookup: the user who
+     * selected a sentence meant the sentence. The server reads every link out
+     * of what it is given, a share link included (internal/intake).
+     */
+    static boolean isLinks(String s) {
+        if (s == null) return false;
+        int links = 0;
+        for (String line : s.split("\\r?\\n")) {
+            String v = line.trim();
+            if (v.isEmpty() || v.startsWith("#")) continue;
+            for (String tok : v.split("\\s+")) {
+                if (!isURL(tok)) return false;
+                links++;
+            }
+        }
+        return links > 0;
     }
 
     // ── the job ──────────────────────────────────────────────────────────
@@ -628,7 +649,11 @@ final class Intake {
                 for (int i = 0; inst != null && i < inst.length(); i++) {
                     added.add(inst.optString(i));
                 }
-                return null;
+                // A collection finishes "done" with what did not arrive named
+                // beside what did: one dead link out of forty is a sentence,
+                // not a failure of the other thirty-nine.
+                String err = j.optString("error", "");
+                return err.isEmpty() ? null : err;
             }
             if ("error".equals(state)) return j.optString("error");
             // A confirmed job with companions ticked goes back to DOWNLOADING
@@ -680,6 +705,9 @@ final class Intake {
         long done = j.optLong("done"), total = j.optLong("total");
         String file = j.optString("source", "");
         String host = j.optString("host", "");
+        // Nothing has arrived yet: the server is still asking the site - about
+        // one file, or about every file a folder or a list names.
+        if (file.isEmpty() && done == 0 && total == 0) return a.getString(R.string.intake_connecting);
         // No percentage when the site declared no length: an invented one that
         // stops moving is worse than a line that only says work is happening.
         int pct = total > 0 ? (int) Math.min(100, done * 100 / total) : -1;
@@ -760,6 +788,15 @@ final class Intake {
                     int msg = stale ? R.string.intake_stale
                             : same ? R.string.intake_same : R.string.intake_update;
                     label = a.getString(msg, row(a, c, stale));
+                } else if (!c.optString("elsewhere").isEmpty()) {
+                    // A dictionary of this name in another folder of the
+                    // library, whatever its source: unticked, because
+                    // installing it here makes a second one (D155 Am. 2).
+                    boolean identical = c.optBoolean("unchanged");
+                    same = true;
+                    label = a.getString(identical ? R.string.intake_same_elsewhere
+                                    : R.string.intake_other_elsewhere,
+                            row(a, c, !identical), c.optString("elsewhere"));
                 }
             }
             needs.add(dep);
@@ -846,7 +883,11 @@ final class Intake {
      * not be pushed off the end by a number that is not.
      */
     private static String row(Activity a, JSONObject c, boolean withSize) {
-        String name = c.optString("name");
+        // The site's date for a file offered from a link, kept on every row
+        // that has one: beside "replaces your copy" it is how a newer edition
+        // is told apart from the one installed.
+        String date = c.optString("date", "");
+        String name = date.isEmpty() ? c.optString("name") : c.optString("name") + " · " + date;
         String files = fileList(a, c.optJSONArray("files"));
         long size = withSize ? c.optLong("size") : 0;
         if (files.isEmpty()) {

@@ -175,6 +175,10 @@
           one worth ticking, one already done and left unticked (D134). -->
      <string name="intake_update">%1$s — replaces your copy</string>
      <string name="intake_same">%1$s — already installed</string>
+    <!-- A dictionary of this name is in another folder of the library (%2$s),
+         from wherever it came. Unticked: installing would make a second one. -->
+    <string name="intake_same_elsewhere">%1$s — already in %2$s</string>
+    <string name="intake_other_elsewhere">%1$s — a different copy is in %2$s</string>
      <!-- A folder of that name is there and holds no dictionary: one a removal
           left behind, or one the user made. The install takes it over either
           way, so it is said - but it is not an installation, and calling it

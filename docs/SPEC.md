@@ -307,7 +307,13 @@ the reader pooled for it.
   that fails — so the library is never without the dictionary. The question is re-asked at
   write time rather than trusted from the sniff, because minutes of user and extraction time
   sit between the two. `copy=1` is the explicit opt-out and installs beside it under the
-  numbered name.
+  numbered name. **Beyond the import folder, the whole library is checked by name** (D155
+  Am. 2): a candidate with no folder of its own there is looked up among every dictionary
+  the registry knows (`Manager.Library` ← `Registry.SourcePaths`), in any configured folder
+  and any format, by main-file stem, case-folded. It reports `elsewhere` (that folder's name),
+  with `unchanged` when the files beside it match by name and size. Both screens start it
+  unticked, because installing adds a second dictionary of the name; it is never replaced in
+  place, since that folder is the user's own arrangement.
 - **A link already downloaded is not downloaded again.** A completed fetch leaves a `.done`
   sidecar beside the archive recording the URL, the server's validator and the size; the
   next fetch of the same URL sends `If-None-Match`/`If-Modified-Since`, and a **304 reuses
@@ -315,6 +321,32 @@ the reader pooled for it.
   `Content-Length` ends the transfer at the headers. A file that genuinely changed is
   fetched and lands under its own numbered name — **a download is never overwritten**,
   because it may be the user's only copy. A sidecar whose file has gone is swept.
+- **One link can name a collection** (D155, `collection.go`). When the download path refuses
+  a link as not a dictionary, the page itself is read once, and a **web folder page** (every
+  `<a href>` on it) or a **`.txt` list** yields the files it names. A list is one file name
+  (resolved against the list's own URL after redirects) or link per line; the first `# `
+  line is the title, and everything else is ignored. Several links **pasted at once** are the
+  same thing with nothing to fetch first, and `https://legbehindneck.com/wudict#<link>`, the
+  **share link**, stands for the link after `#` (`#/dict/x/`, a single leading slash, is short for a path on
+  legbehindneck.com itself; `//host` is refused as a host in disguise): the page at that address is only what a
+  browser shows when Android did not open the app, and it never sees the fragment. There is
+  no manifest format. Only names a dictionary, companion or archive could have are kept
+  (dict's tables, `SupportedArchive`), each is re-checked against the host policy, and each
+  is described by a `HEAD` (4 at a time; ≤ 500 files; page ≤ 1 MiB). A file the site no
+  longer has is not offered. **Nothing is downloaded before the user chooses.** The files
+  are presented to `Sniff` as an archive whose directory is the listing, so grouping,
+  completeness and `markExisting` are the archive rules unchanged. "Already installed /
+  replaces your copy" therefore comes from names and sizes (D134), with no stored
+  provenance; the site's `Last-Modified` is shown as `date`. Each dictionary's **media**
+  (`.mdd`, `.files.zip`, `res.zip`) is moved into `extras`, **ticked by default**. It is
+  marked before the move, so a grown `.mdd` is a change. For a list, not a folder page,
+  each main file also gets the single-link companion probe, so a list of `.mdx` links
+  installs with their `.mdd`. Confirming downloads and installs **one dictionary at a
+  time** through the ordinary `Fetch` → `sniffFile` → extract path. A failing dictionary is
+  named in `error` and the rest still install (`done` + `error`). An archive row installs
+  every whole dictionary inside it except those the library holds unchanged. Downloads are
+  named after the link given, not the redirect target, so a "latest" permalink (Kiwix)
+  installs into the same folder every time and a new edition replaces the old.
 - **Disposition**: `IMPORT_KEEP = ask|keep|delete` decides what becomes of the source
   archive after a successful install, and the configured answer beats the request. **A
   failed import always keeps the source, and that is not a setting** (D129) — deleting the

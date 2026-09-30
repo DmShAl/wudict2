@@ -747,6 +747,18 @@ paths:
         IMPORT_INSECURE lifts both; an unfinished download is resumed by the
         next attempt.
 
+        A `url` may also name SEVERAL dictionaries: a web folder page (every
+        link on it to a dictionary, a companion or an archive), a `.txt` list
+        (one file name or link per line, the first `# ` line its title), or
+        several links pasted at once - and a share link
+        `https://legbehindneck.com/wudict#<link>` stands for the link after
+        `#` (`#/dict/x/` is short for a path on that site). Such a job is a `collection`: `ready` arrives with nothing
+        downloaded, one candidate per dictionary sized and dated from the
+        site's own headers, and each dictionary's media offered in `extras`.
+        Confirming downloads and installs each chosen dictionary in turn; one
+        that fails is named in `error` and the job still ends `done` with the
+        rest installed.
+
         A dictionary the library already holds is reported as such on the
         candidate (`existing`, `unchanged`) and, by default, is UPDATED rather
         than installed a second time: two copies of one dictionary means two of
@@ -1803,7 +1815,17 @@ components:
           description: >
             Bytes to extract, or to download. Zero while downloading from a
             server that declared no length.
-        error: { type: string }
+        error:
+          type: string
+          description: >
+            Why the job failed; on a `done` collection, the dictionaries that
+            did not arrive and why, beside those in `installed`.
+        collection:
+          type: boolean
+          description: >
+            The candidates came from a folder, a list or several links rather
+            than from one file: nothing is downloaded yet, `source` is the
+            collection's title, and `extras` are each dictionary's media.
 
     IntakeCandidate:
       type: object
@@ -1848,6 +1870,19 @@ components:
             declares, so installing would replace the dictionary with itself.
             Size and not a checksum - the same test used to decide whether a
             prepared dictionary needs re-indexing.
+        date:
+          type: string
+          description: >
+            For a collection, when the site says the main file last changed
+            (YYYY-MM-DD). Absent when the site did not say.
+        elsewhere:
+          type: string
+          description: >
+            With no folder of its own in the import folder: the folder that
+            holds a dictionary of the same name elsewhere in the library, any
+            configured folder, any format. `unchanged` then says whether it is
+            the same files at the same sizes. Installing adds a second one
+            beside it, so screens start it unticked.
 
     IntakeExtra:
       type: object

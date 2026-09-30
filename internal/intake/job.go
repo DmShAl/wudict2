@@ -9,8 +9,10 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -139,6 +141,11 @@ type Job struct {
 	// undefined.
 	Done  int64 `json:"done"`
 	Total int64 `json:"total"`
+	// Collection says the candidates came from a folder, a list or several
+	// pasted links rather than from one file: nothing has been downloaded
+	// yet, Source is the collection's title, and each candidate is fetched
+	// and installed in turn once confirmed (collection.go).
+	Collection bool `json:"collection,omitempty"`
 }
 
 // Manager owns the single job. The zero value is usable.
@@ -149,6 +156,11 @@ type Manager struct {
 	// is meant to outlive the request that confirmed it - but a test must, or
 	// it removes the t.TempDir() out from under a running extraction.
 	wg sync.WaitGroup
+
+	// Library, when set, lists the main file of every dictionary the library
+	// knows, in every configured folder: what "already installed" is checked
+	// against beyond the import folder (existing.go).
+	Library func() []string
 
 	// Installed, when set, is called after a job installs at least one
 	// dictionary. It is how the library learns to look again; this package
@@ -171,6 +183,11 @@ type jobState struct {
 	// user is being asked about. Both are empty for an import from a file.
 	fetch  Fetcher
 	extras []Extra
+
+	// coll is set for a collection: what each candidate downloads. total is
+	// the confirmed download's size, which each row's progress counts toward.
+	coll  *collection
+	total int64
 }
 
 // Begin reads the archive and reports what is in it, without extracting
@@ -186,7 +203,7 @@ type jobState struct {
 // empty - a first-run server has no folder yet - and then no candidate is
 // marked and Confirm is what refuses.
 func (m *Manager) Begin(dest string, src Source) (Job, error) {
-	cands, err := sniffFile(dest, src.Path)
+	cands, err := m.sniffFile(dest, src.Path)
 	if err != nil {
 		m.discardSource(src)
 		return Job{}, err
@@ -223,6 +240,19 @@ func (m *Manager) Begin(dest string, src Source) (Job, error) {
 func (m *Manager) BeginURL(dest, raw string, f Fetcher) (Job, error) {
 	if dest == "" {
 		return Job{}, ErrNoDestination
+	}
+	// What was pasted may be one link, a share link wrapping one, or several
+	// links in a list or a sentence. One link is today's path exactly as
+	// pasted; several are a collection with nothing to fetch first.
+	raw = strings.TrimSpace(raw)
+	pasted := parseText(raw, nil)
+	switch {
+	case len(pasted.links) > 1:
+		return m.beginPasted(dest, pasted, f)
+	case len(pasted.links) == 1 && strings.ContainsAny(raw, " \t\r\n"):
+		raw = pasted.links[0].String()
+	default:
+		raw = Unwrap(raw)
 	}
 	u, err := f.Check(raw)
 	if err != nil {
@@ -274,10 +304,21 @@ func (m *Manager) download(ctx context.Context, j *jobState, f Fetcher, raw stri
 		j.pub.Source, j.pub.Done, j.pub.Total = name, done, total
 		m.mu.Unlock()
 	})
+	if errors.Is(err, ErrNotArchive) {
+		// Not a dictionary: perhaps a folder of them, or a list. The headers
+		// said no before a byte of body was taken, so this is the first read
+		// of the page itself - and a page that names no dictionary keeps the
+		// refusal it had.
+		if l, lerr := fetchListing(ctx, f, raw); lerr == nil {
+			c, berr := build(ctx, f, j.dest, m.library(), l)
+			m.ready(j, c, l.title, berr)
+			return
+		}
+	}
 	var cands []Candidate
 	var extras []Extra
 	if err == nil {
-		cands, err = sniffFile(j.dest, src.Path)
+		cands, err = m.sniffFile(j.dest, src.Path)
 	}
 	if err == nil {
 		// Only now, with the main file in hand: the probe is derived from ITS
@@ -303,10 +344,64 @@ func (m *Manager) download(ctx context.Context, j *jobState, f Fetcher, raw stri
 	j.pub.Done, j.pub.Total = 0, 0 // the next number this reports is extraction
 }
 
+// beginPasted claims the job for several pasted links and describes them on
+// its own goroutine, as BeginURL does for one: a HEAD per file is seconds on a
+// phone, too long to hold the request that asked.
+func (m *Manager) beginPasted(dest string, l listing, f Fetcher) (Job, error) {
+	host := l.links[0].Hostname()
+	m.mu.Lock()
+	if m.busyLocked() {
+		m.mu.Unlock()
+		return Job{}, ErrBusy
+	}
+	m.clearLocked()
+	ctx, cancel := context.WithCancel(context.Background())
+	j := &jobState{
+		dest: dest, fetch: f, cancel: cancel,
+		pub: Job{ID: jobID(), State: StateDownloading, Host: host},
+	}
+	m.cur = j
+	pub := j.pub.copy()
+	m.mu.Unlock()
+
+	m.wg.Add(1)
+	go func() {
+		defer m.wg.Done()
+		defer cancel()
+		c, err := build(ctx, f, dest, m.library(), l)
+		title := l.title
+		if title == "" {
+			title = host
+		}
+		m.ready(j, c, title, err)
+	}()
+	return pub, nil
+}
+
+// ready hands a described collection to the user, exactly as a sniffed
+// archive is handed over: the same candidates and extras, and the same
+// Confirm to answer them with.
+func (m *Manager) ready(j *jobState, c collection, title string, err error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.cur != j {
+		return
+	}
+	if err != nil {
+		j.pub.State, j.pub.Error = StateError, errorText(err)
+		return
+	}
+	j.coll, j.extras = &c, c.extras
+	j.pub.State, j.pub.Source, j.pub.Collection = StateReady, title, true
+	j.pub.Candidates = append([]Candidate(nil), c.cands...)
+	j.pub.Extras = append([]Extra(nil), c.extras...)
+	j.pub.Done, j.pub.Total = 0, 0
+}
+
 // sniffFile lists what an archive holds without writing anything, and gives
 // "readable, but holds no dictionary" its own answer rather than letting it
 // arrive as an empty success.
-func sniffFile(dest, path string) ([]Candidate, error) {
+func (m *Manager) sniffFile(dest, path string) ([]Candidate, error) {
 	a, err := openArchive(path)
 	if err != nil {
 		return nil, err
@@ -321,8 +416,16 @@ func sniffFile(dest, path string) ([]Candidate, error) {
 	if len(cands) == 0 {
 		return nil, ErrNothingFound
 	}
-	markExisting(dest, cands)
+	markExisting(dest, m.library(), cands)
 	return cands, nil
+}
+
+// library is the Library hook's answer, nil without one.
+func (m *Manager) library() []string {
+	if m.Library == nil {
+		return nil
+	}
+	return m.Library()
 }
 
 // busyLocked reports whether the current job is doing work that a new one
@@ -355,6 +458,9 @@ func (m *Manager) Confirm(dest string, pick []int, opts Options) (Job, error) {
 		return Job{}, ErrBusy
 	case j.pub.State != StateReady:
 		return Job{}, ErrNoJob
+	}
+	if j.coll != nil {
+		return m.confirmCollectionLocked(j, dest, pick, opts)
 	}
 
 	extras, fetching, err := pickExtras(j.extras, opts.Extras)
@@ -487,7 +593,7 @@ func (m *Manager) fetchExtras(ctx context.Context, j *jobState, chosen []Candida
 		m.mu.Unlock()
 	}
 
-	fresh, err := sniffFile(j.dest, j.src.Path)
+	fresh, err := m.sniffFile(j.dest, j.src.Path)
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if err == nil {
@@ -540,7 +646,38 @@ func fileSize(path string) int64 {
 // the rename is atomic, so the library never contains a dictionary that is
 // still arriving, and a failure leaves nothing to tidy but the stage.
 func (m *Manager) install(ctx context.Context, j *jobState, chosen []Candidate, opts Options) {
-	a, err := openArchive(j.src.Path)
+	installed, consumed, err := m.extractAll(ctx, j, j.src, j.stage, chosen, opts.Copy)
+
+	m.mu.Lock()
+	j.pub.Installed = installed
+	if err != nil {
+		j.pub.State, j.pub.Error = StateError, errorText(err)
+	} else {
+		j.pub.State = StateDone
+	}
+	src, keep := j.src, j.keep
+	m.mu.Unlock()
+
+	// Dispose only after the outcome is recorded, and only ever the source we
+	// were given: a spooled or downloaded copy always, a file the user owns
+	// only when they said so and only when the import worked.
+	dispose(src, keep, err, consumed)
+	// The staging ROOT goes last and only if it is empty, which is the order
+	// that matters: a spooled upload lives in it, so removing the root before
+	// disposing of the source would always find it occupied and leave the
+	// user's dictionary folder with a directory in it forever. Non-forced, so
+	// a second wudict staging its own import there keeps it.
+	_ = os.Remove(StageRoot(j.dest))
+	if len(installed) > 0 && m.Installed != nil {
+		m.Installed()
+	}
+}
+
+// extractAll extracts chosen from src into stage and moves each into the
+// library, returning the folders it made and the loose files it took. The
+// stage is removed on the way out, whatever happened.
+func (m *Manager) extractAll(ctx context.Context, j *jobState, src Source, stage string, chosen []Candidate, copyBeside bool) (installed, consumed []string, err error) {
+	a, err := openArchive(src.Path)
 	// The reader holds the SOURCE file open, and the tail below removes it:
 	// Windows refuses to remove an open file, so "delete the source
 	// afterwards" would silently keep it (POSIX unlinks open files, which is
@@ -557,14 +694,12 @@ func (m *Manager) install(ctx context.Context, j *jobState, chosen []Candidate, 
 		}
 		defer closeArchive()
 	}
-	var installed []string
-	var consumed []string
 	pa, plain := a.(*plainArchive)
 	for i, c := range chosen {
 		if err != nil {
 			break
 		}
-		sub := filepath.Join(j.stage, strconv.Itoa(i))
+		sub := filepath.Join(stage, strconv.Itoa(i))
 		if err = os.MkdirAll(sub, 0o755); err != nil {
 			break
 		}
@@ -576,7 +711,7 @@ func (m *Manager) install(ctx context.Context, j *jobState, chosen []Candidate, 
 			break
 		}
 		var final string
-		if final, err = placeDict(j.dest, j.stage, i, c, sub, opts.Copy); err != nil {
+		if final, err = placeDict(j.dest, stage, i, c, sub, copyBeside); err != nil {
 			break
 		}
 		installed = append(installed, filepath.Base(final))
@@ -591,40 +726,207 @@ func (m *Manager) install(ctx context.Context, j *jobState, chosen []Candidate, 
 	// The stage goes whatever happened, including on cancel: everything still
 	// inside it is half a dictionary by definition, since a whole one has
 	// already been renamed out.
-	_ = os.RemoveAll(j.stage)
+	_ = os.RemoveAll(stage)
+	return installed, consumed, err
+}
+
+// dispose removes the source of an import when that is what should become of
+// it: a spooled copy always, a file of the user's only after an import that
+// worked and only when they did not ask to keep it (D129).
+func dispose(src Source, keep bool, err error, consumed []string) {
+	if !src.Temp && (err != nil || keep) {
+		return
+	}
+	removeSource(src)
+	if src.Temp {
+		return
+	}
+	for _, p := range consumed {
+		if p != src.Path {
+			_ = os.Remove(p)
+		}
+	}
+}
+
+// planRow is one confirmed collection row: the dictionary as the user saw it,
+// and the files to download for it - its own, then the media they ticked.
+type planRow struct {
+	cand  Candidate
+	files []remoteFile
+}
+
+// confirmCollectionLocked is Confirm for a collection. Called with m.mu held.
+//
+// Each row must be installable as described: a StarDict set whose index the
+// folder does not have is refused here, before anything is downloaded, rather
+// than after the rest of it has been.
+func (m *Manager) confirmCollectionLocked(j *jobState, dest string, pick []int, opts Options) (Job, error) {
+	c := j.coll
+	chosen := map[int]bool{}
+	var order []int
+	for _, i := range pick {
+		if i < 0 || i >= len(c.cands) {
+			return Job{}, errors.New("no such dictionary in this collection")
+		}
+		if chosen[i] {
+			continue
+		}
+		if !c.cands[i].Complete() {
+			return Job{}, ErrNotInstallable
+		}
+		chosen[i] = true
+		order = append(order, i)
+	}
+	if len(order) == 0 {
+		return Job{}, errors.New("nothing was selected")
+	}
+	media := map[int][]remoteFile{}
+	seen := map[int]bool{}
+	for _, k := range opts.Extras {
+		if k < 0 || k >= len(c.extras) || seen[k] {
+			return Job{}, errors.New("no such companion file")
+		}
+		seen[k] = true
+		// A media file whose dictionary was not ticked is simply not fetched:
+		// on its own it is nothing to install.
+		if x := c.extras[k]; chosen[x.row] {
+			media[x.row] = append(media[x.row], remoteFile{name: x.Name, url: x.url, size: x.Size})
+		}
+	}
+	// In screen order, whatever order the ticks arrived in, so the progress
+	// line walks down the list the user just looked at.
+	sort.Ints(order)
+	plan := make([]planRow, 0, len(order))
+	var total int64
+	for _, i := range order {
+		files := append(append([]remoteFile(nil), c.rows[i].files...), media[i]...)
+		for _, rf := range files {
+			total += rf.size
+		}
+		plan = append(plan, planRow{cand: c.cands[i], files: files})
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	j.dest, j.keep, j.cancel, j.total = dest, opts.Keep, cancel, total
+	j.pub.State, j.pub.Done, j.pub.Total, j.pub.Source = StateDownloading, 0, total, ""
+	m.wg.Add(1)
+	go func() {
+		defer m.wg.Done()
+		defer cancel()
+		m.runCollection(ctx, j, plan, opts)
+	}()
+	return j.pub.copy(), nil
+}
+
+// runCollection downloads and installs each confirmed row in turn. One row
+// failing is reported and the next one still runs: a folder of forty
+// dictionaries is forty separate answers, and one dead link is not a reason
+// to lose the other thirty-nine.
+func (m *Manager) runCollection(ctx context.Context, j *jobState, plan []planRow, opts Options) {
+	var installed, problems []string
+	var base int64
+	for _, p := range plan {
+		if ctx.Err() != nil {
+			break
+		}
+		src, err := m.fetchRow(ctx, j, p, &base)
+		var got []string
+		if err == nil {
+			got, err = m.installRow(ctx, j, src, opts)
+		}
+		installed = append(installed, got...)
+		if err != nil && ctx.Err() == nil {
+			problems = append(problems, p.cand.Name+": "+errorText(err))
+		}
+	}
+	_ = os.Remove(StageRoot(j.dest))
 
 	m.mu.Lock()
 	j.pub.Installed = installed
-	if err != nil {
-		j.pub.State, j.pub.Error = StateError, errorText(err)
-	} else {
-		j.pub.State = StateDone
+	switch {
+	case ctx.Err() != nil:
+		j.pub.State, j.pub.Error = StateError, errorText(ctx.Err())
+	case len(installed) == 0 && len(problems) > 0:
+		j.pub.State, j.pub.Error = StateError, strings.Join(problems, "; ")
+	default:
+		// Done, with what did not arrive said beside what did.
+		j.pub.State, j.pub.Error = StateDone, strings.Join(problems, "; ")
 	}
-	src, keep := j.src, j.keep
+	j.pub.Source = ""
 	m.mu.Unlock()
-
-	// Dispose only after the outcome is recorded, and only ever the source we
-	// were given: a spooled or downloaded copy always, a file the user owns
-	// only when they said so and only when the import worked.
-	if src.Temp || (err == nil && !keep) {
-		removeSource(src)
-		if !src.Temp {
-			for _, p := range consumed {
-				if p != src.Path {
-					_ = os.Remove(p)
-				}
-			}
-		}
-	}
-	// The staging ROOT goes last and only if it is empty, which is the order
-	// that matters: a spooled upload lives in it, so removing the root before
-	// disposing of the source would always find it occupied and leave the
-	// user's dictionary folder with a directory in it forever. Non-forced, so
-	// a second wudict staging its own import there keeps it.
-	_ = os.Remove(StageRoot(j.dest))
 	if len(installed) > 0 && m.Installed != nil {
 		m.Installed()
 	}
+}
+
+// fetchRow downloads one row's files and returns the main one. A companion
+// that does not arrive is not an error here: the sniff that follows decides
+// whether what did arrive is a dictionary, exactly as for a single link.
+func (m *Manager) fetchRow(ctx context.Context, j *jobState, p planRow, base *int64) (Source, error) {
+	var main Source
+	for k, rf := range p.files {
+		start := *base
+		m.mu.Lock()
+		j.pub.State, j.pub.Source, j.pub.Done, j.pub.Total = StateDownloading, rf.name, start, max(j.total, start)
+		m.mu.Unlock()
+		src, err := j.fetch.Fetch(ctx, j.dest, rf.url, func(name string, done, _ int64) {
+			m.mu.Lock()
+			j.pub.Source, j.pub.Done = name, start+done
+			m.mu.Unlock()
+		})
+		step := rf.size
+		if err == nil && step <= 0 {
+			step = fileSize(src.Path)
+		}
+		*base = start + step
+		if k == 0 {
+			if err != nil {
+				return Source{}, err
+			}
+			main = src
+		}
+	}
+	return main, nil
+}
+
+// installRow installs what one downloaded row turned out to hold. A loose
+// dictionary is installed as ticked, replacing the copy the library has. An
+// archive installs every whole dictionary in it except those the library
+// already holds unchanged: the user ticked the archive, not what was inside
+// it, and replacing a dictionary with itself is work that changes nothing.
+func (m *Manager) installRow(ctx context.Context, j *jobState, src Source, opts Options) ([]string, error) {
+	cands, err := m.sniffFile(j.dest, src.Path)
+	if err != nil {
+		return nil, err
+	}
+	archive := SupportedArchive(src.Path)
+	var chosen []Candidate
+	var total int64
+	for _, c := range cands {
+		if !c.Complete() || (archive && c.Unchanged) {
+			continue
+		}
+		chosen = append(chosen, c)
+		total += c.Size
+	}
+	if len(chosen) == 0 {
+		for _, c := range cands {
+			if !c.Complete() {
+				return nil, fmt.Errorf("%w: %s", ErrIncomplete, strings.Join(c.Missing, ", "))
+			}
+		}
+		return nil, nil // everything in it is already installed, unchanged
+	}
+	stage, err := Stage(j.dest)
+	if err != nil {
+		return nil, err
+	}
+	m.mu.Lock()
+	j.pub.State, j.pub.Source, j.pub.Done, j.pub.Total = StateInstalling, src.Name, 0, total
+	m.mu.Unlock()
+	installed, consumed, err := m.extractAll(ctx, j, src, stage, chosen, opts.Copy)
+	dispose(src, j.keep, err, consumed)
+	return installed, err
 }
 
 // placeDict moves one extracted dictionary out of the stage and into the

@@ -42,6 +42,7 @@ const maxIntakeUpload = 16 << 30
 // nil hook would be the difference between the two.
 func (s *Server) importer() *intake.Manager {
 	s.intakeOnce.Do(func() {
+		s.intake.Library = s.reg.SourcePaths
 		s.intake.Installed = func() {
 			if err := s.reg.Rescan(); err != nil {
 				logx.Warn("rescan after import: %v", err)

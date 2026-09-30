@@ -173,6 +173,27 @@
                 <data android:host="mdx.mdict.org" />
             </intent-filter>
 
+            <!-- wuDict's own share link: https://legbehindneck.com/wudict#<link>
+                 opens here, whatever the link after "#" is - a dictionary, a
+                 web folder of them, or a list (internal/intake/collection.go).
+                 Unlike the hosts above this one is VERIFIED: the site serves
+                 /.well-known/assetlinks.json naming this package and its
+                 signing certificates, so on Android 12+ the link opens the app
+                 with no setting to find. Exact paths, never a prefix: the rest
+                 of the site is a website and must keep opening in the browser.
+                 A filter of its own, because <data> elements in one filter
+                 combine, and these paths would otherwise apply to the hosts
+                 above as well. -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" />
+                <data android:host="legbehindneck.com" />
+                <data android:path="/wudict" />
+                <data android:path="/wudict/" />
+            </intent-filter>
+
             <!-- Sharing an archive, from a browser's download list or a file
                  manager. In src/main because an archive is handled by the
                  flavour-neutral Intake, which needs no storage permission and

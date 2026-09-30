@@ -1710,6 +1710,19 @@ func sourceSig(path string) string {
 	return fmt.Sprintf("%d:%d", st.Size(), st.ModTime().UnixNano())
 }
 
+// SourcePaths lists the path of every dictionary the user has, in every
+// configured folder - not the ones the app ships. What an import checks
+// "already installed" against beyond its own folder (intake.Manager.Library).
+func (r *Registry) SourcePaths() []string {
+	var out []string
+	for _, e := range r.all() {
+		if !e.builtin {
+			out = append(out, e.Path)
+		}
+	}
+	return out
+}
+
 func (r *Registry) all() []*entry {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
