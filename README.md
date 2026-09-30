@@ -5,7 +5,7 @@ browser at [http://localhost:6888](http://localhost:6888).
 
 Runs on Android, macOS, Linux, Windows.
 
-One native golang binary, no dependencies and minimum configuration — just set the folders with your .mdx/.slob/.bgl/.zim/.ifo dictionaries, and you are good to go.
+One native golang binary, no dependencies and minimum configuration — just set the folders with your `.mdx/.slob/.bgl/.zim/.ifo` dictionary collections, and you are good to go.
 
 Runs natively on [android](https://wuweidict.github.io/wudict/apps/android/), [mac](https://wuweidict.github.io/wudict/apps/macos/), [windows](https://wuweidict.github.io/wudict/apps/windows/), [linux](https://wudict.legbehindneck.com/running/#__tabbed_1_2), and even raspberry pi.
 
