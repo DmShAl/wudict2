@@ -790,13 +790,13 @@ final class Intake {
                     label = a.getString(msg, row(a, c, stale));
                 } else if (!c.optString("elsewhere").isEmpty()) {
                     // A dictionary of this name in another folder of the
-                    // library, whatever its source: unticked, because
-                    // installing it here makes a second one (D155 Am. 2).
-                    boolean identical = c.optBoolean("unchanged");
-                    same = true;
-                    label = a.getString(identical ? R.string.intake_same_elsewhere
+                    // library, whatever its source. Ticked is "overwrite that
+                    // copy in place", unticked is "skip" - never a second one
+                    // (D155 Am. 4) - and the same file starts skipped.
+                    same = c.optBoolean("unchanged");
+                    label = a.getString(same ? R.string.intake_same_elsewhere
                                     : R.string.intake_other_elsewhere,
-                            row(a, c, !identical), c.optString("elsewhere"));
+                            row(a, c, !same), c.optString("elsewhere"));
                 }
             }
             needs.add(dep);
@@ -857,7 +857,28 @@ final class Intake {
                         latch.countDown();
                     })
                     .setNegativeButton(R.string.intake_cancel, (dlg, w) -> latch.countDown())
+                    // Overwrite all / skip all. Its listener is replaced once
+                    // the dialog is showing, because a dialog button's own
+                    // listener always dismisses the dialog.
+                    .setNeutralButton(R.string.intake_all, null)
                     .create();
+            d.setOnShowListener(x -> {
+                android.widget.Button all = d.getButton(AlertDialog.BUTTON_NEUTRAL);
+                if (all == null) return;
+                all.setOnClickListener(v -> {
+                    // All when anything that can be ticked is not; None when
+                    // everything already is.
+                    boolean on = false;
+                    for (int i = 0; i < checked.length; i++) {
+                        if (ok[i] && !checked[i]) on = true;
+                    }
+                    for (int i = 0; i < checked.length; i++) {
+                        if (!ok[i]) continue;
+                        checked[i] = on;
+                        d.getListView().setItemChecked(i, on);
+                    }
+                });
+            });
             d.show();
         });
         // A dialog whose window went away with the activity would otherwise

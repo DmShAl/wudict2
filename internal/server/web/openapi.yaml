@@ -760,10 +760,11 @@ paths:
         rest installed.
 
         A dictionary the library already holds is reported as such on the
-        candidate (`existing`, `unchanged`) and, by default, is UPDATED rather
-        than installed a second time: two copies of one dictionary means two of
-        every result and a second full indexing pass. `copy` is the opt-out and
-        installs beside it under a numbered name.
+        candidate (`existing`, or `elsewhere` for one in another configured
+        folder; `unchanged` when the files are the same) and, when the caller
+        picks it, is REPLACED - its folder, or its files in place - rather than
+        installed a second time. Not picking it is skipping it. Nothing is ever
+        installed or downloaded under a numbered name.
 
         A downloaded plain file has its companions LOOKED FOR at the sibling
         URLs the format tables name - `oxford.mdd`, `oxford.1.mdd`, and so on,
@@ -814,12 +815,6 @@ paths:
             Whether the caller's own source file survives a SUCCESSFUL import.
             Ignored unless IMPORT_KEEP is `ask`. Used only with `confirm`.
           schema: { type: string, enum: ['0', '1'] }
-        - name: copy
-          in: query
-          description: >
-            Install beside a dictionary the library already holds instead of
-            updating it. Used only with `confirm`.
-          schema: { type: string, enum: ['0', '1'] }
         - name: extras
           in: query
           description: >
@@ -853,11 +848,6 @@ paths:
                   description: >
                     Keep the source file after a successful import. Ignored
                     unless IMPORT_KEEP is `ask`.
-                copy:
-                  type: boolean
-                  description: >
-                    Install beside a dictionary already in the library instead
-                    of updating it. Default is to update.
                 extras:
                   type: array
                   description: >
@@ -1806,8 +1796,8 @@ components:
         installed:
           type: array
           description: >
-            Folders now in the library. Not always the candidate's name: a
-            second import of the same bundle is numbered rather than merged.
+            The dictionaries now in the library, by name - a folder of its
+            own, or a copy replaced in place in another configured folder.
           items: { type: string }
         done: { type: integer, description: "Bytes extracted, or downloaded, so far." }
         total:
@@ -1861,8 +1851,8 @@ components:
           type: string
           description: >
             The library folder that already holds this dictionary, absent when
-            none does. Confirming replaces that folder whole unless `copy` is
-            set.
+            none does. Picking it replaces that folder; its installed media
+            is kept when the replacement brings none.
         unchanged:
           type: boolean
           description: >
@@ -1881,8 +1871,8 @@ components:
             With no folder of its own in the import folder: the folder that
             holds a dictionary of the same name elsewhere in the library, any
             configured folder, any format. `unchanged` then says whether it is
-            the same files at the same sizes. Installing adds a second one
-            beside it, so screens start it unticked.
+            the same files at the same sizes. Picking it overwrites that copy's
+            files in place; nothing else in its folder is touched.
 
     IntakeExtra:
       type: object

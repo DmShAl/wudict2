@@ -50,7 +50,7 @@ func markExisting(dest string, lib []string, cands []Candidate) {
 		if byName == nil {
 			byName = libraryByName(lib)
 		}
-		c.Elsewhere, c.Unchanged = elsewhere(dest, byName, *c)
+		c.Elsewhere, c.Unchanged, c.elsewhereMain = elsewhere(dest, byName, *c)
 	}
 }
 
@@ -72,31 +72,30 @@ func libraryByName(lib []string) map[string][]string {
 // what a person recognises - and whether that one is the same files at the
 // same sizes. An identical copy wins over a different one when there are
 // several.
-func elsewhere(dest string, byName map[string][]string, c Candidate) (string, bool) {
+func elsewhere(dest string, byName map[string][]string, c Candidate) (folder string, same bool, main string) {
 	own := ""
 	if dest != "" {
 		own = filepath.Join(dest, safeDirName(c.Name))
 	}
-	found := ""
 	for _, p := range byName[strings.ToLower(c.Name)] {
 		dir := filepath.Dir(p)
 		if dir == own {
 			continue
 		}
 		if sameFiles(dir, c) {
-			return filepath.Base(dir), true
+			return filepath.Base(dir), true, p
 		}
-		if found == "" {
-			found = filepath.Base(dir)
+		if main == "" {
+			folder, main = filepath.Base(dir), p
 		}
 	}
-	return found, false
+	return folder, false, main
 }
 
 // existingDict reports the folder in dest that already holds this candidate,
 // and whether its contents match what the archive declares.
 //
-// The folder is the one uniqueDir would have picked first, which is the only
+// The folder is the one an install creates, safeDirName(c.Name), which is the only
 // honest place to look: a dictionary installed from this archive before is in
 // safeDirName(c.Name), and a dictionary installed from somewhere else that
 // happens to own that name is a collision the user must be told about anyway,

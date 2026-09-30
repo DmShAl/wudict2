@@ -10,6 +10,8 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
+	"io/fs"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -83,13 +85,6 @@ type Options struct {
 	// only copy after an import that did not work is the one mistake here that
 	// cannot be undone, and it is policy rather than a preference (D129).
 	Keep bool
-	// Copy installs beside a dictionary that is already in the library instead
-	// of replacing it, under the numbered name uniqueDir picks. It is the
-	// explicit opt-out from the default, which is that importing a dictionary
-	// the library already holds UPDATES it (D134) - because the common reason
-	// to import the same bundle twice is that it was reissued, and the common
-	// outcome before this existed was two of everything in every result list.
-	Copy bool
 	// Extras are indexes into Job.Extras: the companion files that were found
 	// beside a downloaded one and that the user agreed to fetch. Nothing is
 	// downloaded on the strength of having been found (see probe.go), so an
@@ -664,7 +659,7 @@ func fileSize(path string) int64 {
 // the rename is atomic, so the library never contains a dictionary that is
 // still arriving, and a failure leaves nothing to tidy but the stage.
 func (m *Manager) install(ctx context.Context, j *jobState, chosen []Candidate, opts Options) {
-	installed, consumed, err := m.extractAll(ctx, j, j.src, j.stage, chosen, opts.Copy)
+	installed, consumed, err := m.extractAll(ctx, j, j.src, j.stage, chosen)
 
 	m.mu.Lock()
 	j.pub.Installed = installed
@@ -694,7 +689,7 @@ func (m *Manager) install(ctx context.Context, j *jobState, chosen []Candidate, 
 // extractAll extracts chosen from src into stage and moves each into the
 // library, returning the folders it made and the loose files it took. The
 // stage is removed on the way out, whatever happened.
-func (m *Manager) extractAll(ctx context.Context, j *jobState, src Source, stage string, chosen []Candidate, copyBeside bool) (installed, consumed []string, err error) {
+func (m *Manager) extractAll(ctx context.Context, j *jobState, src Source, stage string, chosen []Candidate) (installed, consumed []string, err error) {
 	a, err := openArchive(src.Path)
 	// The reader holds the SOURCE file open, and the tail below removes it:
 	// Windows refuses to remove an open file, so "delete the source
@@ -728,11 +723,11 @@ func (m *Manager) extractAll(ctx context.Context, j *jobState, src Source, stage
 		}); err != nil {
 			break
 		}
-		var final string
-		if final, err = placeDict(j.dest, stage, i, c, sub, copyBeside); err != nil {
+		var name string
+		if name, err = placeDict(j.dest, stage, i, c, sub); err != nil {
 			break
 		}
-		installed = append(installed, filepath.Base(final))
+		installed = append(installed, name)
 		if plain {
 			// A loose import takes the .mdd as well as the .mdx, and
 			// "delete the source afterwards" that left the .mdd behind would
@@ -972,7 +967,7 @@ func (m *Manager) installRow(ctx context.Context, j *jobState, src Source, opts 
 	m.mu.Lock()
 	j.pub.State, j.pub.Source, j.pub.Done, j.pub.Total = StateInstalling, src.Name, 0, total
 	m.mu.Unlock()
-	installed, consumed, err := m.extractAll(ctx, j, src, stage, chosen, opts.Copy)
+	installed, consumed, err := m.extractAll(ctx, j, src, stage, chosen)
 	dispose(src, j.keep, err, consumed)
 	return installed, err
 }
@@ -995,20 +990,35 @@ func (m *Manager) installRow(ctx context.Context, j *jobState, src Source, opts 
 // A directory rename with files open inside it is fine on POSIX and can fail
 // on Windows, where the error surfaces as the import's error rather than being
 // papered over: a half-swapped library is not something to recover silently.
-func placeDict(dest, stage string, i int, c Candidate, sub string, copyBeside bool) (string, error) {
-	name := ""
-	if !copyBeside {
-		name, _, _ = existingDict(dest, c)
+//
+// Nothing is ever installed under a numbered name (D155 Am. 4). A dictionary
+// of the same name is either replaced - its folder here, or its files in
+// place wherever else in the library it lives - or, when the user unticked
+// it, not installed at all. Two of one dictionary is never the outcome of a
+// default. The name returned is what the user sees in "Installed".
+func placeDict(dest, stage string, i int, c Candidate, sub string) (string, error) {
+	name, _, _ := existingDict(dest, c)
+	if name == "" && c.elsewhereMain != "" {
+		// Asked again at write time, like the folder above: minutes of the
+		// user's and the download's time sit between the screen and here.
+		if fi, err := os.Stat(c.elsewhereMain); err == nil && fi.Mode().IsRegular() {
+			if err := replaceIn(filepath.Dir(c.elsewhereMain), sub); err != nil {
+				return "", err
+			}
+			return c.Name, nil
+		}
 	}
 	if name == "" {
-		final, err := uniqueDir(dest, c.Name)
-		if err != nil {
-			return "", err
+		final := filepath.Join(dest, safeDirName(c.Name))
+		// existingDict reports any folder of this name, so one here now was
+		// made in the moments since: not the user's decision, so not taken.
+		if _, err := os.Lstat(final); err == nil {
+			return "", fmt.Errorf("a folder named %s appeared while installing", filepath.Base(final))
 		}
 		if err := os.Rename(sub, final); err != nil {
 			return "", err
 		}
-		return final, nil
+		return filepath.Base(final), nil
 	}
 
 	final := filepath.Join(dest, name)
@@ -1028,7 +1038,100 @@ func placeDict(dest, stage string, i int, c Candidate, sub string, copyBeside bo
 		_ = os.Rename(away, final)
 		return "", err
 	}
-	return final, nil
+	return name, nil
+}
+
+// replaceIn writes a dictionary's files over a copy of it that lives in one of
+// the user's own folders, loose among other files. Only the files it brings
+// are touched: whatever else the folder holds - other dictionaries, the old
+// copy's media when the new one brings none - stays, because that folder is
+// the user's arrangement and not a folder this program made.
+//
+// Each file it replaces is first renamed ASIDE in its own folder, so the swap
+// is a rename on one filesystem and fully undoable: if any file fails, the
+// ones written are removed and the old ones put back. The asides are dotfiles
+// (never a dictionary to a scan) and are removed once all is in place. The
+// new bytes come from the stage, which may be another filesystem entirely,
+// hence moveFile.
+func replaceIn(dir, sub string) error {
+	type swap struct{ target, aside string }
+	var done []swap
+	undo := func() {
+		for _, s := range slices.Backward(done) {
+			_ = os.Remove(s.target)
+			if s.aside != "" {
+				_ = os.Rename(s.aside, s.target)
+			}
+		}
+	}
+	tag := jobID()
+	err := filepath.WalkDir(sub, func(p string, e fs.DirEntry, err error) error {
+		if err != nil || e.IsDir() {
+			return err
+		}
+		rel, err := filepath.Rel(sub, p)
+		if err != nil {
+			return err
+		}
+		target := filepath.Join(dir, rel)
+		if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+			return err
+		}
+		aside := ""
+		if _, err := os.Lstat(target); err == nil {
+			aside = filepath.Join(filepath.Dir(target), ".wudict-replaced-"+tag+"-"+filepath.Base(target))
+			if err := os.Rename(target, aside); err != nil {
+				return err
+			}
+		}
+		if err := moveFile(p, target); err != nil {
+			if aside != "" {
+				_ = os.Rename(aside, target)
+			}
+			return err
+		}
+		done = append(done, swap{target, aside})
+		return nil
+	})
+	if err != nil {
+		undo()
+		return err
+	}
+	for _, s := range done {
+		if s.aside != "" {
+			_ = os.Remove(s.aside)
+		}
+	}
+	return nil
+}
+
+// moveFile renames src to dst, copying when they are on different
+// filesystems - the stage lives in the import folder, and the user's other
+// folder may be on another disk.
+func moveFile(src, dst string) error {
+	if err := os.Rename(src, dst); err == nil {
+		return nil
+	}
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+	out, err := os.OpenFile(dst, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o644)
+	if err != nil {
+		return err
+	}
+	if _, err := io.CopyBuffer(out, in, make([]byte, copyBufBytes)); err != nil {
+		out.Close()
+		_ = os.Remove(dst)
+		return err
+	}
+	if err := out.Close(); err != nil {
+		_ = os.Remove(dst)
+		return err
+	}
+	_ = os.Remove(src)
+	return nil
 }
 
 // keepMedia moves the media of the dictionary being replaced (old) into its

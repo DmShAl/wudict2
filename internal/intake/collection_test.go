@@ -292,7 +292,7 @@ func TestCollectionFromAList(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(dest, "Oxford", "Oxford.mdx")); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := os.Stat(filepath.Join(DownloadDir(dest), "Oxford.mdd")); !os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(linkDirOf(t, dest, srv.URL+"/dict/lists/Oxford.mdd"), "Oxford.mdd")); !os.IsNotExist(err) {
 		t.Errorf("unticked media was downloaded anyway: %v", err)
 	}
 }
@@ -481,17 +481,18 @@ func TestReplacingWithoutMediaKeepsTheInstalledMedia(t *testing.T) {
 }
 
 // The files of one row install together however the server names them and
-// whatever Downloads already holds: OpenPlain groups by stem, so a companion
-// saved under another stem than its main file would be left behind.
+// whatever the link's download folder already holds: OpenPlain groups by
+// stem, so a companion saved under another stem than its main file would be
+// left behind. An older revision there is replaced, never numbered beside.
 func TestRowFilesShareTheMainFilesSavedStem(t *testing.T) {
 	for _, tc := range []struct {
 		name    string
 		named   map[string]string
-		already string // a file of this name is in Downloads beforehand
+		already string // an older file of this name is in the link's folder
 		dict    string // the folder the dictionary installs into
 	}{
 		{name: "renamed by the server", named: map[string]string{"folder/oxford.mdx": "Oxford_v2.mdx"}, dict: "Oxford_v2"},
-		{name: "name taken in Downloads", already: "oxford.mdx", dict: "oxford (2)"},
+		{name: "older revision already downloaded", already: "oxford.mdx", dict: "oxford"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			s := &colSite{
@@ -500,11 +501,12 @@ func TestRowFilesShareTheMainFilesSavedStem(t *testing.T) {
 			}
 			srv := s.serve(t)
 			dest := t.TempDir()
+			dl := linkDirOf(t, dest, srv.URL+"/dict/folder/oxford.mdx")
 			if tc.already != "" {
-				if err := os.MkdirAll(DownloadDir(dest), 0o755); err != nil {
+				if err := os.MkdirAll(dl, 0o755); err != nil {
 					t.Fatal(err)
 				}
-				if err := os.WriteFile(filepath.Join(DownloadDir(dest), tc.already), []byte("somebody else's"), 0o644); err != nil {
+				if err := os.WriteFile(filepath.Join(dl, tc.already), []byte("an older revision"), 0o644); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -517,18 +519,79 @@ func TestRowFilesShareTheMainFilesSavedStem(t *testing.T) {
 				t.Fatal(err)
 			}
 			m.Wait()
-			if st := m.Status(); st.State != StateDone || st.Error != "" {
-				t.Fatalf("state = %q (%s)", st.State, st.Error)
+			if st := m.Status(); st.State != StateDone || st.Error != "" || !slices.Equal(st.Installed, []string{tc.dict}) {
+				t.Fatalf("state = %q (%s), installed %v", st.State, st.Error, st.Installed)
 			}
 			b, err := os.ReadFile(filepath.Join(dest, tc.dict, tc.dict+".mdd"))
 			if err != nil || string(b) != "media" {
 				t.Fatalf("media = %q, %v: the .mdd did not install with its dictionary", b, err)
 			}
+			for _, d := range []string{dest, dl} {
+				ents, _ := os.ReadDir(d)
+				for _, e := range ents {
+					if strings.Contains(e.Name(), "(2)") {
+						t.Errorf("numbered name in %s: %s", d, e.Name())
+					}
+				}
+			}
 			if tc.already != "" {
-				if b, _ := os.ReadFile(filepath.Join(DownloadDir(dest), tc.already)); string(b) != "somebody else's" {
-					t.Errorf("%s in Downloads was overwritten: %q", tc.already, b)
+				if b, _ := os.ReadFile(filepath.Join(dl, tc.already)); string(b) != "main" {
+					t.Errorf("the older revision was not replaced: %q", b)
 				}
 			}
 		})
+	}
+}
+
+// A dictionary kept loose in another of the user's folders is overwritten
+// THERE when its row is ticked - file by file, touching nothing else in the
+// folder - and no second copy appears in the import folder.
+func TestTickedCopyElsewhereIsReplacedInPlace(t *testing.T) {
+	s := &colSite{files: map[string]string{
+		"folder/en-eu.mdx": "new edition",
+		"folder/en-eu.mdd": "new media",
+	}}
+	srv := s.serve(t)
+	dest := t.TempDir()
+	mine := filepath.Join(t.TempDir(), "Euskera")
+	if err := os.MkdirAll(mine, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for name, body := range map[string]string{
+		"en-eu.mdx": "old", "en-eu.mdd": "old media", "es-eu.mdx": "another dictionary",
+	} {
+		if err := os.WriteFile(filepath.Join(mine, name), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	m := &Manager{Library: func() []string {
+		return []string{filepath.Join(mine, "en-eu.mdx"), filepath.Join(mine, "es-eu.mdx")}
+	}}
+	if _, err := m.BeginURL(dest, srv.URL+"/dict/folder/", loopback()); err != nil {
+		t.Fatal(err)
+	}
+	st := colReady(t, m)
+	if c := st.Candidates[0]; c.Elsewhere != "Euskera" || c.Unchanged {
+		t.Fatalf("candidate = %+v, want a different copy in Euskera", c)
+	}
+	if _, err := m.Confirm(dest, []int{0}, Options{Keep: true, Extras: []int{0}}); err != nil {
+		t.Fatal(err)
+	}
+	m.Wait()
+	if st := m.Status(); st.State != StateDone || !slices.Equal(st.Installed, []string{"en-eu"}) {
+		t.Fatalf("state = %q (%s), installed %v", st.State, st.Error, st.Installed)
+	}
+	for name, want := range map[string]string{
+		"en-eu.mdx": "new edition", "en-eu.mdd": "new media", "es-eu.mdx": "another dictionary",
+	} {
+		if b, err := os.ReadFile(filepath.Join(mine, name)); err != nil || string(b) != want {
+			t.Errorf("%s = %q, %v; want %q", name, b, err, want)
+		}
+	}
+	if ents, _ := os.ReadDir(mine); len(ents) != 3 {
+		t.Errorf("the folder holds %d files, want 3 (no leftovers)", len(ents))
+	}
+	if _, err := os.Stat(filepath.Join(dest, "en-eu")); !os.IsNotExist(err) {
+		t.Errorf("a second copy was installed in the import folder: %v", err)
 	}
 }

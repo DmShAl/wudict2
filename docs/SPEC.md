@@ -301,26 +301,42 @@ the reader pooled for it.
   same size-first test `store.SourceChanged` makes before it re-indexes anything; no
   checksum, because hashing a two-gigabyte bundle on a phone answers a question a `stat`
   answers. The candidate carries `existing` (the folder) and `unchanged` (same files, same
-  sizes), so the user is told *before* choosing rather than shown a numbered folder
-  afterwards; an unchanged one is listed unticked. Confirming **replaces the folder whole**,
+  sizes), so the user is told *before* choosing; the tick is the decision — ticked
+  **overwrites**, unticked **skips** — and an unchanged one starts unticked. **Nothing is
+  ever installed under a numbered name, and there is no "second copy"** (D155 Am. 4; the
+  old `copy=1` opt-out is gone): two of one dictionary is never the outcome of a choice
+  nobody made. Confirming **replaces the folder whole**,
   by renaming the old one aside into the stage, renaming the new one in, and restoring it if
-  that fails — so the library is never without the dictionary. The question is re-asked at
+  that fails — so the library is never without the dictionary. **Media survives a replacement
+  that brings none** (`keepMedia`): a user who unticks a gigabyte of `.mdd` on a row that
+  replaces their copy saved a download and did not ask to lose the installed one, so the old
+  folder's `dict.CompanionMedia` moves into the new one. A replacement with media of its own
+  keeps only its own, because two editions' parts spliced together are neither. The question is re-asked at
   write time rather than trusted from the sniff, because minutes of user and extraction time
-  sit between the two. `copy=1` is the explicit opt-out and installs beside it under the
-  numbered name. **Beyond the import folder, the whole library is checked by name** (D155
+  sit between the two. **Beyond the import folder, the whole library is checked by name** (D155
   Am. 2): a candidate with no folder of its own there is looked up among every dictionary
   the registry knows (`Manager.Library` ← `Registry.SourcePaths`), in any configured folder
   and any format, by main-file stem, case-folded. It reports `elsewhere` (that folder's name),
-  with `unchanged` when the files beside it match by name and size. Both screens start it
-  unticked, because installing adds a second dictionary of the name; it is never replaced in
-  place, since that folder is the user's own arrangement.
+  with `unchanged` when the files beside it match by name and size. Ticked, it is
+  **overwritten in place** (`replaceIn`), "replaces your copy in <folder>": only the files the
+  new copy brings are written, each old one first renamed aside in its own folder (a
+  same-filesystem rename, undone if any file fails), and nothing else in that folder — other
+  dictionaries, media the new copy lacks — is touched, because the folder is the user's own
+  arrangement. Unticked, it is skipped.
+- **Each download is kept under its own link** (`LinkDir`): `Downloads/<host>/<path
+  folders>/<file>`, sanitised, at most 8 folders deep. Two different links therefore never
+  share a file name, and the only file a download can land on is an earlier revision of the
+  same place — which it **replaces**. That is not a doubt, so it is not a question; the
+  dictionaries themselves are the user's decision, taken on the confirm screen. The folder
+  is made only once there are bytes to write, and the sweep removes the ones left empty.
 - **A link already downloaded is not downloaded again.** A completed fetch leaves a `.done`
   sidecar beside the archive recording the URL, the server's validator and the size; the
   next fetch of the same URL sends `If-None-Match`/`If-Modified-Since`, and a **304 reuses
   the file with no body transferred at all**. With no validator to send, an equal
   `Content-Length` ends the transfer at the headers. A file that genuinely changed is
-  fetched and lands under its own numbered name — **a download is never overwritten**,
-  because it may be the user's only copy. A sidecar whose file has gone is swept.
+  fetched and **replaces its older revision** — the old rule "a download is never
+  overwritten" produced `oxford (2).mdx`, which installed as a second dictionary called
+  `oxford (2)` instead of updating `oxford`. A sidecar whose file has gone is swept.
 - **One link can name a collection** (D155, `collection.go`). When the download path refuses
   a link as not a dictionary, the page itself is read once, and a **web folder page** (every
   `<a href>` on it) or a **`.txt` list** yields the files it names. A list is one file name
@@ -341,9 +357,15 @@ the reader pooled for it.
   (`.mdd`, `.files.zip`, `res.zip`) is moved into `extras`, **ticked by default**. It is
   marked before the move, so a grown `.mdd` is a change. For a list, not a folder page,
   each main file also gets the single-link companion probe, so a list of `.mdx` links
-  installs with their `.mdd`. Confirming downloads and installs **one dictionary at a
+  installs with their `.mdd` (the probes run 4 at a time, as the `HEAD`s do). Pasted links
+  are checked against the host policy **before** a job is claimed, as one link is. Confirming
+  downloads and installs **one dictionary at a
   time** through the ordinary `Fetch` → `sniffFile` → extract path. A failing dictionary is
-  named in `error` and the rest still install (`done` + `error`). An archive row installs
+  named in `error` and the rest still install (`done` + `error`). So is a ticked file that
+  did not arrive beside a dictionary that did. A row's files are put back on **one stem**
+  after download (`renameDownload`), because Fetch may save one under another name (a
+  `Content-Disposition`), and OpenPlain groups by
+  stem. A row with nothing left to install still disposes of its download. An archive row installs
   every whole dictionary inside it except those the library holds unchanged. Downloads are
   named after the link given, not the redirect target, so a "latest" permalink (Kiwix)
   installs into the same folder every time and a new edition replaces the old.

@@ -10,12 +10,9 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
-
-	"github.com/wuweidict/wudict/internal/dict"
 )
 
 // Where a half-extracted dictionary lives while it is being extracted.
@@ -157,42 +154,6 @@ func safeDirName(name string) string {
 		return "dictionary"
 	}
 	return out
-}
-
-// uniqueDir picks a folder inside dest that does not exist yet, so importing
-// the same bundle twice produces a second dictionary rather than an extraction
-// into the first one's folder. The suffix is the form a file manager uses,
-// because this name is shown to the user and read by them in a listing.
-func uniqueDir(dest, name string) (string, error) {
-	return uniqueName(dest, safeDirName(name), "")
-}
-
-// uniqueFile is uniqueDir for a file: the number goes before the extension,
-// because "oxford.mdx (2)" is no longer a dictionary file to anything that
-// reads names - the sniff, OpenPlain's grouping, the user's file manager.
-// The extension is what dict.Stem leaves, so ".dsl.dz" stays whole.
-func uniqueFile(dir, name string) (string, error) {
-	base := safeDirName(name)
-	stem := dict.Stem(base)
-	if stem == "" {
-		stem = base
-	}
-	return uniqueName(dir, stem, base[len(stem):])
-}
-
-// uniqueName is the first of stem+ext, stem+" (2)"+ext, ... not in dest.
-func uniqueName(dest, stem, ext string) (string, error) {
-	for n := 1; n <= 200; n++ {
-		try := stem + ext
-		if n > 1 {
-			try = stem + " (" + strconv.Itoa(n) + ")" + ext
-		}
-		p := filepath.Join(dest, try)
-		if _, err := os.Lstat(p); os.IsNotExist(err) {
-			return p, nil
-		}
-	}
-	return "", os.ErrExist
 }
 
 // spoolPrefix names the per-upload directory Spool creates. It is also the
