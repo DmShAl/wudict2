@@ -1143,6 +1143,12 @@ func (r *Registry) Rescan() error {
 	if err != nil {
 		logx.V("scanning dictionary folders: %v", err)
 	}
+	// A dictionary file that was moved, not deleted, takes its prepared folder
+	// with it (D156) - before anything below lists that folder on its own or
+	// prepares the file again from scratch.
+	for _, rl := range store.Relink(paths) {
+		logx.V("rescan: %s moved to %s; its prepared data follows it", rl.From, rl.To)
+	}
 	roots := make([]Root, len(dirs))
 	for i, d := range dirs {
 		roots[i] = Root{Path: d, Count: perRoot[i].New, Total: perRoot[i].Total, Exists: dirExists(d)}
@@ -1708,6 +1714,19 @@ func sourceSig(path string) string {
 		return ""
 	}
 	return fmt.Sprintf("%d:%d", st.Size(), st.ModTime().UnixNano())
+}
+
+// SourcePaths lists the path of every dictionary the user has, in every
+// configured folder - not the ones the app ships. What an import checks
+// "already installed" against beyond its own folder (intake.Manager.Library).
+func (r *Registry) SourcePaths() []string {
+	var out []string
+	for _, e := range r.all() {
+		if !e.builtin {
+			out = append(out, e.Path)
+		}
+	}
+	return out
 }
 
 func (r *Registry) all() []*entry {

@@ -152,7 +152,7 @@ Each language is a small download (under 2 MB) and is used only for dictionaries
 
 - <kbd>−</kbd> <kbd>15px</kbd> <kbd>+</kbd>: [text size](<entry://wudict text size>).
 - ![](folder.svg) <kbd>Edit folders…</kbd>: [add dictionaries](<entry://wudict add dictionaries>).
-- ![](rescan.svg) <kbd>Rescan folders</kbd>: find dictionaries added or removed since.
+- ![](rescan.svg) <kbd>Rescan folders</kbd>: find dictionaries added or removed since. If a dictionary's files are gone, it offers to delete its prepared data.
 - ![](lemmas.svg) <kbd>Lemmatization…</kbd>: [word forms](<entry://wudict lemmatization>).
 - ![](browse.svg) <kbd>Browse A–Z…</kbd>: [read a dictionary page by page](<entry://wudict browse>).
 - ![](styles.svg) <kbd>Custom styles…</kbd>: [your own look](<entry://wudict styles>).
