@@ -1143,6 +1143,12 @@ func (r *Registry) Rescan() error {
 	if err != nil {
 		logx.V("scanning dictionary folders: %v", err)
 	}
+	// A dictionary file that was moved, not deleted, takes its prepared folder
+	// with it (D156) - before anything below lists that folder on its own or
+	// prepares the file again from scratch.
+	for _, rl := range store.Relink(paths) {
+		logx.V("rescan: %s moved to %s; its prepared data follows it", rl.From, rl.To)
+	}
 	roots := make([]Root, len(dirs))
 	for i, d := range dirs {
 		roots[i] = Root{Path: d, Count: perRoot[i].New, Total: perRoot[i].Total, Exists: dirExists(d)}
