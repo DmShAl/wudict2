@@ -282,9 +282,10 @@ func titleOf(u *url.URL) string {
 	return name
 }
 
-// remoteFile is one file a collection will download: its name as it will be
-// saved - which is the name the link implies, the same one Fetch picks - and
-// what the site said about it.
+// remoteFile is one file a collection will download: the name the link
+// implies, and what the site said about it. The name is the plan's, not a
+// promise about the disk - Fetch may save under another, and fetchRow puts a
+// row's files back on one stem.
 type remoteFile struct {
 	name     string
 	url      string
@@ -466,12 +467,15 @@ func companionsOf(ctx context.Context, f Fetcher, files []*remoteFile) []*remote
 	for _, rf := range files {
 		listed[strings.ToLower(rf.name)] = true
 	}
+	// Read-only while the probes run; a companion two mains both find is
+	// deduplicated below, in list order.
 	known := func(name string) bool { return listed[strings.ToLower(name)] }
-	var out []*remoteFile
-	for _, rf := range files {
-		if ctx.Err() != nil {
-			break
-		}
+	// headWorkers at a time, as describe: a list of a hundred .mdx is a few
+	// hundred requests, minutes when asked one after another on a phone.
+	found := make([][]Extra, len(files))
+	var wg sync.WaitGroup
+	sem := make(chan struct{}, headWorkers)
+	for i, rf := range files {
 		if dict.ClassifyName(rf.name) != dict.KindMain {
 			continue
 		}
@@ -479,7 +483,20 @@ func companionsOf(ctx context.Context, f Fetcher, files []*remoteFile) []*remote
 		if err != nil {
 			continue
 		}
-		for _, x := range probeSiblings(ctx, f, u, rf.name, known) {
+		wg.Add(1)
+		go func(i int, u *url.URL, name string) {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+			if ctx.Err() == nil {
+				found[i] = probeSiblings(ctx, f, u, name, known)
+			}
+		}(i, u, rf.name)
+	}
+	wg.Wait()
+	var out []*remoteFile
+	for _, xs := range found {
+		for _, x := range xs {
 			if known(x.Name) {
 				continue
 			}

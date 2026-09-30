@@ -624,7 +624,9 @@ function wireIntake(dir){
     if(!t||!/[\r\n]/.test(t))return;
     e.preventDefault();
     const f=$("url"),a=f.selectionStart??f.value.length,b=f.selectionEnd??a;
-    const v=t.replace(/\s+/g," ").trim();
+    // "#" lines (a list's title, its comments) are dropped first: joined onto
+    // one line, the first of them would make the whole line a comment.
+    const v=t.split(/\r?\n|\r/).filter(l=>!/^\s*#/.test(l)).join(" ").replace(/\s+/g," ").trim();
     f.value=f.value.slice(0,a)+v+f.value.slice(b);
     f.setSelectionRange(a+v.length,a+v.length);
   });

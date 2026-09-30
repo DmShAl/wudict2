@@ -5,6 +5,7 @@
 package intake
 
 import (
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -106,6 +107,7 @@ func TestParseHTML(t *testing.T) {
 type colSite struct {
 	files  map[string]string // path under /dict/ -> body
 	broken map[string]bool
+	named  map[string]string // path under /dict/ -> Content-Disposition file name
 	date   time.Time
 }
 
@@ -138,6 +140,9 @@ func (s *colSite) serve(t *testing.T) *httptest.Server {
 		if s.broken[p] && r.Method == http.MethodGet && r.Header.Get("Range") == "" {
 			http.Error(w, "gone", http.StatusInternalServerError)
 			return
+		}
+		if n := s.named[p]; n != "" {
+			w.Header().Set("Content-Disposition", `attachment; filename="`+n+`"`)
 		}
 		if strings.HasSuffix(p, ".txt") {
 			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
@@ -257,7 +262,7 @@ func TestCollectionFromAFolderPage(t *testing.T) {
 // downloaded.
 func TestCollectionFromAList(t *testing.T) {
 	s := &colSite{files: map[string]string{
-		"lists/set.txt":   "# My set\nOxford.mdx\n\nmissing.slob\n",
+		"lists/set.txt":    "# My set\nOxford.mdx\n\nmissing.slob\n",
 		"lists/Oxford.mdx": "oxford",
 		"lists/Oxford.mdd": "oxford media",
 	}}
@@ -402,5 +407,128 @@ func TestCollectionKnowsTheWholeLibrary(t *testing.T) {
 		if c.Elsewhere != w.where || c.Unchanged != w.same || c.Existing != "" {
 			t.Errorf("%s: elsewhere=%q unchanged=%v existing=%q, want %q/%v", c.Name, c.Elsewhere, c.Unchanged, c.Existing, w.where, w.same)
 		}
+	}
+}
+
+// Pasted links the policy refuses are refused at once, with the policy's
+// reason, as one link is - not claimed as a job that then finds nothing.
+func TestPastedLinksAreCheckedBeforeTheJob(t *testing.T) {
+	m := &Manager{}
+	f := Fetcher{Hosts: []string{"freemdict.com"}}
+	_, err := m.BeginURL(t.TempDir(), "https://other.org/a.mdx https://other.org/b.mdx", f)
+	if !errors.Is(err, ErrHostNotAllowed) {
+		t.Fatalf("err = %v, want %v", err, ErrHostNotAllowed)
+	}
+	if st := m.Status(); st.ID != "" {
+		t.Fatalf("a job was claimed: %+v", st)
+	}
+	if _, err := m.BeginURL(t.TempDir(), "https://freemdict.com/a https://freemdict.com/b", f); !errors.Is(err, ErrNoLinks) {
+		t.Fatalf("err = %v, want %v", err, ErrNoLinks)
+	}
+}
+
+// A row that replaces the user's copy with its media unticked replaces the
+// dictionary and keeps the media the copy had: unticking saved a download, it
+// did not ask for the installed .mdd to go. A replacement that brings media of
+// its own keeps only its own.
+func TestReplacingWithoutMediaKeepsTheInstalledMedia(t *testing.T) {
+	s := &colSite{files: map[string]string{
+		"folder/oxford.mdx": "first",
+		"folder/oxford.mdd": "old media",
+	}}
+	srv := s.serve(t)
+	dest := t.TempDir()
+	m := &Manager{}
+	install := func(extras []int) {
+		t.Helper()
+		if _, err := m.BeginURL(dest, srv.URL+"/dict/folder/", loopback()); err != nil {
+			t.Fatal(err)
+		}
+		colReady(t, m)
+		if _, err := m.Confirm(dest, []int{0}, Options{Extras: extras}); err != nil {
+			t.Fatal(err)
+		}
+		m.Wait()
+		if st := m.Status(); st.State != StateDone || st.Error != "" {
+			t.Fatalf("state = %q (%s)", st.State, st.Error)
+		}
+	}
+	read := func(name string) string {
+		t.Helper()
+		b, err := os.ReadFile(filepath.Join(dest, "oxford", name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return string(b)
+	}
+
+	install([]int{0})
+	s.files["folder/oxford.mdx"] = "second, longer"
+	install(nil)
+	if got := read("oxford.mdx"); got != "second, longer" {
+		t.Errorf("mdx = %q, want the replacement", got)
+	}
+	if got := read("oxford.mdd"); got != "old media" {
+		t.Errorf("mdd = %q, want the installed media kept", got)
+	}
+
+	s.files["folder/oxford.mdx"] = "third, longer still"
+	s.files["folder/oxford.mdd"] = "new media"
+	install([]int{0})
+	if got := read("oxford.mdd"); got != "new media" {
+		t.Errorf("mdd = %q, want the replacement's own media", got)
+	}
+}
+
+// The files of one row install together however the server names them and
+// whatever Downloads already holds: OpenPlain groups by stem, so a companion
+// saved under another stem than its main file would be left behind.
+func TestRowFilesShareTheMainFilesSavedStem(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		named   map[string]string
+		already string // a file of this name is in Downloads beforehand
+		dict    string // the folder the dictionary installs into
+	}{
+		{name: "renamed by the server", named: map[string]string{"folder/oxford.mdx": "Oxford_v2.mdx"}, dict: "Oxford_v2"},
+		{name: "name taken in Downloads", already: "oxford.mdx", dict: "oxford (2)"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s := &colSite{
+				files: map[string]string{"folder/oxford.mdx": "main", "folder/oxford.mdd": "media"},
+				named: tc.named,
+			}
+			srv := s.serve(t)
+			dest := t.TempDir()
+			if tc.already != "" {
+				if err := os.MkdirAll(DownloadDir(dest), 0o755); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(filepath.Join(DownloadDir(dest), tc.already), []byte("somebody else's"), 0o644); err != nil {
+					t.Fatal(err)
+				}
+			}
+			m := &Manager{}
+			if _, err := m.BeginURL(dest, srv.URL+"/dict/folder/", loopback()); err != nil {
+				t.Fatal(err)
+			}
+			colReady(t, m)
+			if _, err := m.Confirm(dest, []int{0}, Options{Keep: true, Extras: []int{0}}); err != nil {
+				t.Fatal(err)
+			}
+			m.Wait()
+			if st := m.Status(); st.State != StateDone || st.Error != "" {
+				t.Fatalf("state = %q (%s)", st.State, st.Error)
+			}
+			b, err := os.ReadFile(filepath.Join(dest, tc.dict, tc.dict+".mdd"))
+			if err != nil || string(b) != "media" {
+				t.Fatalf("media = %q, %v: the .mdd did not install with its dictionary", b, err)
+			}
+			if tc.already != "" {
+				if b, _ := os.ReadFile(filepath.Join(DownloadDir(dest), tc.already)); string(b) != "somebody else's" {
+					t.Errorf("%s in Downloads was overwritten: %q", tc.already, b)
+				}
+			}
+		})
 	}
 }

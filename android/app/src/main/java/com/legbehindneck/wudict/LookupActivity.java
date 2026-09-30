@@ -123,7 +123,10 @@ public class LookupActivity extends Activity {
         super.onCreate(savedInstanceState);
 
         Intent i = getIntent();
-        query = clean(text(i));
+        // Read once: text() walks every extra a caller might use, and both the
+        // word and the link test below want the same raw string.
+        CharSequence raw = text(i);
+        query = clean(raw);
         if (query == null) {
             // Nothing survived - a selection of whitespace, or a wudict:// URI
             // with no q. A blank floating window over someone else's app would
@@ -145,7 +148,7 @@ public class LookupActivity extends Activity {
         // for the one share a user most obviously meant as an import. The
         // decision of which SITES may be fetched is the server's (D130); this
         // only distinguishes a link from a word.
-        String link = link(text(i));
+        String link = link(raw);
         if (link != null) {
             startActivity(new Intent(this, MainActivity.class)
                     .putExtra(Intake.EXTRA_URL, link)

@@ -10,8 +10,10 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -347,8 +349,24 @@ func (m *Manager) download(ctx context.Context, j *jobState, f Fetcher, raw stri
 // beginPasted claims the job for several pasted links and describes them on
 // its own goroutine, as BeginURL does for one: a HEAD per file is seconds on a
 // phone, too long to hold the request that asked.
+//
+// Validated before the job is claimed, as one link is: pasted links that the
+// policy refuses, or that name nothing this build reads, are answered now with
+// the reason rather than as a job that fails a moment later.
 func (m *Manager) beginPasted(dest string, l listing, f Fetcher) (Job, error) {
-	host := l.links[0].Hostname()
+	files := pickFiles(f, l.links)
+	if len(files) == 0 {
+		for _, u := range l.links {
+			if _, err := f.Check(u.String()); err != nil {
+				return Job{}, err
+			}
+		}
+		return Job{}, ErrNoLinks
+	}
+	host := ""
+	if u, err := url.Parse(files[0].url); err == nil {
+		host = u.Hostname()
+	}
 	m.mu.Lock()
 	if m.busyLocked() {
 		m.mu.Unlock()
@@ -829,14 +847,22 @@ func (m *Manager) runCollection(ctx context.Context, j *jobState, plan []planRow
 		if ctx.Err() != nil {
 			break
 		}
-		src, err := m.fetchRow(ctx, j, p, &base)
+		src, missed, err := m.fetchRow(ctx, j, p, &base)
 		var got []string
 		if err == nil {
 			got, err = m.installRow(ctx, j, src, opts)
 		}
 		installed = append(installed, got...)
-		if err != nil && ctx.Err() == nil {
+		if ctx.Err() != nil {
+			continue
+		}
+		if err != nil {
 			problems = append(problems, p.cand.Name+": "+errorText(err))
+		} else if len(missed) > 0 {
+			// Installed, but without a file the user ticked - its media,
+			// most often. Said, because "Installed" alone would promise the
+			// pictures and sound they asked for.
+			problems = append(problems, p.cand.Name+": "+strings.Join(missed, ", "))
 		}
 	}
 	_ = os.Remove(StageRoot(j.dest))
@@ -861,9 +887,17 @@ func (m *Manager) runCollection(ctx context.Context, j *jobState, plan []planRow
 
 // fetchRow downloads one row's files and returns the main one. A companion
 // that does not arrive is not an error here: the sniff that follows decides
-// whether what did arrive is a dictionary, exactly as for a single link.
-func (m *Manager) fetchRow(ctx context.Context, j *jobState, p planRow, base *int64) (Source, error) {
-	var main Source
+// whether what did arrive is a dictionary, exactly as for a single link. What
+// did not arrive is returned as missed, to be said beside the install.
+//
+// The row's names are the plan's, but the names on disk are Fetch's: a server
+// may call a file something else (Content-Disposition), and a name already
+// taken in Downloads gets a numbered one. OpenPlain groups by stem, so each
+// companion is renamed to the stem the main file was actually saved under,
+// keeping the suffix the plan gave it - or "oxford.mdd" stays behind while
+// "Oxford_v2.mdx" installs without it.
+func (m *Manager) fetchRow(ctx context.Context, j *jobState, p planRow, base *int64) (main Source, missed []string, err error) {
+	planned, saved := dict.Stem(p.files[0].name), ""
 	for k, rf := range p.files {
 		start := *base
 		m.mu.Lock()
@@ -879,14 +913,25 @@ func (m *Manager) fetchRow(ctx context.Context, j *jobState, p planRow, base *in
 			step = fileSize(src.Path)
 		}
 		*base = start + step
-		if k == 0 {
-			if err != nil {
-				return Source{}, err
-			}
+		switch {
+		case k == 0 && err != nil:
+			return Source{}, nil, err
+		case k == 0:
 			main = src
+			if !SupportedArchive(src.Path) {
+				saved = dict.Stem(src.Name)
+			}
+		case err != nil:
+			missed = append(missed, rf.name+": "+errorText(err))
+		case saved != "" && len(rf.name) > len(planned) && strings.EqualFold(rf.name[:len(planned)], planned):
+			// StarDict's res.zip is named for no dictionary and fails the
+			// prefix test, so it is left as it came.
+			if _, err := renameDownload(j.dest, rf.url, src, saved+rf.name[len(planned):]); err != nil {
+				missed = append(missed, rf.name+": "+errorText(err))
+			}
 		}
 	}
-	return main, nil
+	return main, missed, nil
 }
 
 // installRow installs what one downloaded row turned out to hold. A loose
@@ -915,7 +960,10 @@ func (m *Manager) installRow(ctx context.Context, j *jobState, src Source, opts 
 				return nil, fmt.Errorf("%w: %s", ErrIncomplete, strings.Join(c.Missing, ", "))
 			}
 		}
-		return nil, nil // everything in it is already installed, unchanged
+		// Everything in it is already installed, unchanged: a success with
+		// nothing to do, so the download goes the way a finished one would.
+		dispose(src, j.keep, nil, nil)
+		return nil, nil
 	}
 	stage, err := Stage(j.dest)
 	if err != nil {
@@ -968,14 +1016,59 @@ func placeDict(dest, stage string, i int, c Candidate, sub string, copyBeside bo
 	if err := os.Rename(final, away); err != nil {
 		return "", err
 	}
-	if err := os.Rename(sub, final); err != nil {
+	restore, err := keepMedia(away, sub, c)
+	if err == nil {
+		err = os.Rename(sub, final)
+	}
+	if err != nil {
 		// Put it back. The restore is best-effort by necessity - there is no
 		// third place to stand if it also fails - but the failure that gets
 		// reported is the one that caused this, not the one cleaning up.
+		restore()
 		_ = os.Rename(away, final)
 		return "", err
 	}
 	return final, nil
+}
+
+// keepMedia moves the media of the dictionary being replaced (old) into its
+// replacement (sub) when the replacement arrived with none of its own. A user
+// who unticked a gigabyte of .mdd on a row that replaces their copy was saving
+// the download, not asking for the copy they already have to be deleted - and
+// the swap in placeDict deletes whatever the new folder does not carry.
+//
+// All or nothing by format: a replacement that brings ANY media keeps only
+// its own, because an old ".2.mdd" beside a new ".mdd" is two editions spliced
+// into one dictionary. The list is dict.CompanionMedia's, asked of the NEW
+// main file's name in both folders, so what is carried is exactly what the
+// reader will look for beside it.
+//
+// restore moves back whatever was moved, for a caller whose swap then fails;
+// it is never nil.
+func keepMedia(old, sub string, c Candidate) (restore func(), err error) {
+	var moved [][2]string
+	restore = func() {
+		for _, m := range slices.Backward(moved) {
+			_ = os.Rename(m[1], m[0])
+		}
+	}
+	// Main is an entry name, slash-separated whatever the platform.
+	main := c.Main[strings.LastIndexByte(c.Main, '/')+1:]
+	if main == "" || len(dict.CompanionMedia(filepath.Join(sub, main))) > 0 {
+		return restore, nil
+	}
+	for _, from := range dict.CompanionMedia(filepath.Join(old, main)) {
+		to := filepath.Join(sub, filepath.Base(from))
+		if _, err := os.Lstat(to); err == nil {
+			continue
+		}
+		if err := os.Rename(from, to); err != nil {
+			restore()
+			return func() {}, err
+		}
+		moved = append(moved, [2]string{from, to})
+	}
+	return restore, nil
 }
 
 // Status is the current job, or the zero Job when there is none. Never an

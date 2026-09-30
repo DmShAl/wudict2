@@ -303,7 +303,7 @@ func (f Fetcher) Fetch(ctx context.Context, dest, raw string, progress Progress)
 	// Only now is the file whole, and only now does it get a name that is not
 	// ".part" - which is the whole convention: nothing but a complete download
 	// is ever visible under a name a scan or a user would take seriously.
-	final, err := uniqueDir(dir, name) // a file, but the same "does not exist yet" question
+	final, err := uniqueFile(dir, name)
 	if err != nil {
 		return Source{}, err
 	}
@@ -317,6 +317,54 @@ func (f Fetcher) Fetch(ctx context.Context, dest, raw string, progress Progress)
 		Size:     n, File: filepath.Base(final),
 	})
 	return Source{Path: final, Name: filepath.Base(final)}, nil
+}
+
+// renameDownload gives a completed download of raw, saved by Fetch as src, the
+// name it must have beside the files it belongs with, and moves its sidecar
+// along so the next import of raw still reuses it.
+//
+// A file already under that name is replaced. The one caller asks for a name
+// sharing the stem of a main file it has just saved or reused, so what is
+// there is either an older copy of this very companion or an orphan that
+// OpenPlain would otherwise splice into the dictionary. Any other sidecar that
+// named it is dropped: its size check is the only thing that would stop it
+// offering the new bytes as the old download.
+func renameDownload(dest, raw string, src Source, name string) (Source, error) {
+	dir := DownloadDir(dest)
+	name = safeDirName(name)
+	to := filepath.Join(dir, name)
+	if src.Path == to {
+		return src, nil
+	}
+	// Only a file Fetch saved is ever renamed here, never one elsewhere that a
+	// Source could also describe.
+	if filepath.Dir(src.Path) != dir {
+		return src, errors.New("not a download")
+	}
+	if err := os.Rename(src.Path, to); err != nil {
+		return src, err
+	}
+	u, err := url.Parse(strings.TrimSpace(raw))
+	own := ""
+	if err == nil {
+		own = filepath.Join(dir, safeDirName(nameFromURL(u))+".done")
+	}
+	sidecars, _ := filepath.Glob(filepath.Join(dir, "*.done"))
+	for _, sc := range sidecars {
+		b, rerr := os.ReadFile(sc)
+		var m doneMeta
+		if rerr != nil || json.Unmarshal(b, &m) != nil {
+			continue
+		}
+		switch {
+		case sc == own && m.URL == u.String() && m.File == src.Name:
+			m.File = name
+			writeJSON(sc, m)
+		case m.File == name:
+			_ = os.Remove(sc)
+		}
+	}
+	return Source{Path: to, Name: name}, nil
 }
 
 // get issues the request, retrying once from zero if the range was refused.
