@@ -182,3 +182,27 @@ func TestDriveSingleLink(t *testing.T) {
 		t.Fatalf("state = %q error = %q, want Drive's refusal named", st.State, st.Error)
 	}
 }
+
+func TestSharePageIsNotALink(t *testing.T) {
+	for _, s := range []string{
+		"https://legbehindneck.com/wudict", "https://legbehindneck.com/wudict/",
+		"https://www.legbehindneck.com/wudict#", "https://legbehindneck.com/wudict/# ",
+		"  https://legbehindneck.com/wudict  ",
+	} {
+		if !IsSharePage(s) {
+			t.Errorf("IsSharePage(%q) = false", s)
+		}
+		m := &Manager{}
+		if _, err := m.BeginURL(t.TempDir(), s, loopback()); err != ErrSharePage {
+			t.Errorf("BeginURL(%q) = %v, want ErrSharePage", s, err)
+		}
+	}
+	for _, s := range []string{
+		"https://legbehindneck.com/wudict#https://x.org/a.mdx", "https://legbehindneck.com/wudict#/dict/eu/",
+		"https://legbehindneck.com/dict/euskera/", "https://example.org/wudict",
+	} {
+		if IsSharePage(s) {
+			t.Errorf("IsSharePage(%q) = true", s)
+		}
+	}
+}

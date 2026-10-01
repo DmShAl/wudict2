@@ -43,6 +43,14 @@
         <intent>
             <action android:name="android.intent.action.TTS_SERVICE" />
         </intent>
+        <!-- Which apps are web browsers (API 30+ package visibility): wudict's
+             own page of links has to be opened in one by package, because a
+             plain VIEW of it resolves to this app's App Link (Intake.openInBrowser). -->
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.BROWSABLE" />
+            <data android:scheme="https" />
+        </intent>
     </queries>
 
     <application

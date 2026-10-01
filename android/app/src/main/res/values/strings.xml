@@ -240,4 +240,7 @@
      <string name="intake_failed">Could not add dictionaries: %1$s</string>
      <string name="intake_no_server">The dictionary server did not start, so nothing could be added.</string>
      <string name="intake_no_picker">This device has no file picker.</string>
+     <!-- wudict's own page of dictionary links, tapped: it opens in a browser,
+          and this is the answer when the device has none. %1$s is the address. -->
+     <string name="intake_no_browser">No web browser is installed to open %1$s.</string>
 </resources>

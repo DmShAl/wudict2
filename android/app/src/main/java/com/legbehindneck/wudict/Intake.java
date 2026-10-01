@@ -27,6 +27,8 @@ import android.content.ClipData;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.content.pm.ResolveInfo;
 import android.database.Cursor;
 import android.net.Uri;
 import android.os.Environment;
@@ -366,6 +368,10 @@ final class Intake {
             // by name. Cleared for the same singleTask reason as the decline
             // path; startURL outlives this call, so clearing first is safe.
             intent.setData(null);
+            if (isSharePage(u)) {
+                openInBrowser(a, u);
+                return true;
+            }
             startURL(a, u.toString());
             return true;
         }
@@ -380,6 +386,58 @@ final class Intake {
         say(a, a.getString(R.string.intake_unsupported,
                 name != null ? name : u.getLastPathSegment()));
         return true;
+    }
+
+    /**
+     * The share link with nothing after "#": wudict's page of dictionary links
+     * itself (legbehindneck.com/wudict), not a link to any dictionary. The App
+     * Link claims it like any share link, so a tap on it - in the howto, in a
+     * messenger - lands here, and it used to be "imported" as a folder page
+     * that lists nothing. It is a page to look at, so it goes to a browser.
+     */
+    static boolean isSharePage(Uri u) {
+        String host = u.getHost(), path = u.getPath(), frag = u.getEncodedFragment();
+        if (host == null) return false;
+        host = host.toLowerCase(Locale.US);
+        return (host.equals("legbehindneck.com") || host.equals("www.legbehindneck.com"))
+                && ("/wudict".equals(path) || "/wudict/".equals(path))
+                && (frag == null || frag.trim().isEmpty());
+    }
+
+    /**
+     * Opens a page in a web browser - by package, because a plain VIEW of this
+     * address resolves to the App Link, which is this app. The browser is the
+     * one the user chose as default for web pages (asked with an address no
+     * app claims), or else the first installed one that is not this app. No
+     * browser at all is said, never retried as an intent that would loop back.
+     */
+    private static void openInBrowser(Activity a, Uri page) {
+        PackageManager pm = a.getPackageManager();
+        Intent probe = new Intent(Intent.ACTION_VIEW, Uri.parse("https://example.com/"))
+                .addCategory(Intent.CATEGORY_BROWSABLE);
+        List<String> browsers = new ArrayList<>();
+        for (ResolveInfo r : pm.queryIntentActivities(probe, PackageManager.MATCH_DEFAULT_ONLY)) {
+            String p = r.activityInfo == null ? null : r.activityInfo.packageName;
+            if (p != null && !p.equals(a.getPackageName()) && !browsers.contains(p)) browsers.add(p);
+        }
+        ResolveInfo def = pm.resolveActivity(probe, PackageManager.MATCH_DEFAULT_ONLY);
+        String pkg = def != null && def.activityInfo != null
+                && browsers.contains(def.activityInfo.packageName)
+                ? def.activityInfo.packageName // a real default, not the chooser
+                : browsers.isEmpty() ? null : browsers.get(0);
+        if (pkg == null) {
+            say(a, a.getString(R.string.intake_no_browser, page.toString()));
+            return;
+        }
+        try {
+            a.startActivity(new Intent(Intent.ACTION_VIEW, page)
+                    .addCategory(Intent.CATEGORY_BROWSABLE)
+                    .setPackage(pkg)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+        } catch (Exception e) {
+            Log.w(TAG, "could not open " + page + " in " + pkg, e);
+            say(a, a.getString(R.string.intake_no_browser, page.toString()));
+        }
     }
 
     /**

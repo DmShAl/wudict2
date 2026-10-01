@@ -70,6 +70,32 @@ const (
 	sniffHeadBytes = 64 << 10
 )
 
+// ErrSharePage is the share link with nothing after "#": wudict's own page of
+// dictionary links, not a link to any dictionary. Read as a folder page it
+// lists nothing (its rows are drawn by script), which said "no dictionaries
+// found" about a page that is full of them.
+var ErrSharePage = errors.New("that is wudict's page of dictionary links: open it in a browser and choose a dictionary there")
+
+// IsSharePage reports the share link that carries no link: the page itself.
+func IsSharePage(s string) bool {
+	s = strings.TrimSpace(s)
+	page, frag, _ := strings.Cut(s, "#")
+	if strings.TrimSpace(frag) != "" {
+		return false
+	}
+	u, err := url.Parse(page)
+	if err != nil {
+		return false
+	}
+	switch strings.ToLower(u.Scheme) {
+	case "https", "http":
+	default:
+		return false
+	}
+	host := strings.TrimPrefix(strings.ToLower(u.Hostname()), "www.")
+	return host == ShareHost && strings.TrimSuffix(u.Path, "/") == SharePath
+}
+
 // ErrNoLinks is a folder page or list that names no dictionary this build
 // reads - which, for a page, is the answer the single-file path gave before
 // collections existed, now said about the right thing.

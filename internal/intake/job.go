@@ -251,12 +251,18 @@ func (m *Manager) BeginURL(dest, raw string, f Fetcher) (Job, error) {
 	// links in a list or a sentence. One link is today's path exactly as
 	// pasted; several are a collection with nothing to fetch first.
 	raw = strings.TrimSpace(raw)
+	if IsSharePage(raw) {
+		return Job{}, ErrSharePage
+	}
 	pasted := parseText(raw, nil)
 	switch {
 	case len(pasted.links) > 1:
 		return m.beginPasted(dest, pasted, f)
 	case len(pasted.links) == 1 && strings.ContainsAny(raw, " \t\r\n"):
 		raw = pasted.links[0].String()
+		if IsSharePage(raw) {
+			return Job{}, ErrSharePage
+		}
 	default:
 		raw = Unwrap(raw)
 	}
