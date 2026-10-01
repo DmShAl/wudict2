@@ -292,7 +292,16 @@ func (s *Server) handleIntakeStatus(w http.ResponseWriter, r *http.Request) {
 
 // handleIntakeCancel abandons whatever is in flight. Also how the page says
 // "not these after all" to a sniffed archive it never confirmed.
+//
+// With ?id=, only that job: a client releasing the job it started must not
+// cancel one another client started since (intake.Manager.CancelID). The
+// answer is then the job that is current, cancelled or not.
 func (s *Server) handleIntakeCancel(w http.ResponseWriter, r *http.Request) {
+	if id := strings.TrimSpace(r.URL.Query().Get("id")); id != "" {
+		s.importer().CancelID(id)
+		writeJSON(w, s.intakeStatus(s.importer().Status()))
+		return
+	}
 	s.importer().Cancel()
 	writeJSON(w, s.intakeStatus(intake.Job{}))
 }
@@ -301,6 +310,15 @@ func (s *Server) handleIntakeCancel(w http.ResponseWriter, r *http.Request) {
 // different thing for a page to do - retry later, reload, tell the user the
 // file is not one we read - and a single 400 would collapse them into one.
 func intakeErr(w http.ResponseWriter, err error) {
+	if errors.Is(err, intake.ErrBusy) {
+		// Marked, because 409 is also "no folder" and "nothing to confirm":
+		// busy is the one a client can answer, by asking the user whether to
+		// stop the other import (GET /api/intake says which it is).
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.WriteHeader(http.StatusConflict)
+		_ = json.NewEncoder(w).Encode(map[string]any{"error": err.Error(), "busy": true})
+		return
+	}
 	code := http.StatusBadRequest
 	switch {
 	case errors.Is(err, intake.ErrBusy):

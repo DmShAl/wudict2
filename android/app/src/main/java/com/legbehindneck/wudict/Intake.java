@@ -73,6 +73,16 @@ final class Intake {
     private static volatile boolean cancelled;
 
     /**
+     * The server job this shell started and has not let go of. The server has
+     * ONE import slot, so a job the shell stops watching - an error read, a
+     * dialog that went with its activity, an exception - must be released, or
+     * it holds that slot, invisible, and every link opened after it is refused
+     * as "an import is already running". Released by id, so a release sent
+     * late never cancels a job somebody else has started since.
+     */
+    private static volatile String ownJob;
+
+    /**
      * A link handed over by LookupActivity, which is where a shared http(s)
      * URL lands: a browser shares a download link as text/plain, and that is
      * the filter the lookup popup owns. It recognises a link and forwards it
@@ -513,10 +523,20 @@ final class Intake {
     private static String runURL(Activity a, Context app, String url, AlertDialog dialog)
             throws Exception {
         if (!awaitServer(app)) return a.getString(R.string.intake_no_server);
-        JSONObject job = post(app, "/api/intake?url=" + enc(url), null, null);
+        JSONObject job = begin(a, app, () -> post(app, "/api/intake?url=" + enc(url), null, null));
+        if (job == null) return null; // the user kept the other import running
         if (job.has("error")) return job.optString("error");
+        claim(job);
+        try {
+            return followURL(a, app, url, dialog);
+        } finally {
+            release(app);
+        }
+    }
 
-        job = awaitDownload(a, app, dialog);
+    private static String followURL(Activity a, Context app, String url, AlertDialog dialog)
+            throws Exception {
+        JSONObject job = awaitDownload(a, app, dialog);
         if (job == null) {
             return cancelled ? a.getString(R.string.intake_cancelled) : null;
         }
@@ -550,7 +570,7 @@ final class Intake {
             if (cancelled) {
                 // The partial file stays on the server's side on purpose: the
                 // next attempt continues from it rather than starting over.
-                post(app, "/api/intake", "DELETE", null);
+                release(app);
                 return null;
             }
             JSONObject j = post(app, "/api/intake", "GET", null);
@@ -582,11 +602,104 @@ final class Intake {
         // holding all-files access - but the test is the file's readability,
         // not the flavour, so a file:// share reaches it in both.
         String path = realPath(a, u);
-        JSONObject job = path != null
+        final String label = name;
+        JSONObject job = begin(a, app, () -> path != null
                 ? post(app, "/api/intake?path=" + enc(path), null, null)
-                : upload(a, app, u, name);
+                : upload(a, app, u, label));
+        if (job == null) {
+            cancelled = true; // the user kept the other import: the rest of this share waits too
+            return null;
+        }
         if (job.has("error")) return job.optString("error");
-        return offer(a, app, job, name, dialog, added);
+        claim(job);
+        try {
+            return offer(a, app, job, name, dialog, added);
+        } finally {
+            release(app);
+        }
+    }
+
+    /**
+     * Starts a server job, and answers the one refusal a user can resolve:
+     * the server's slot held by another import. Nothing on this screen shows
+     * that one - it was started before the app was last closed, or from the
+     * setup page - so the user is told what it is and chooses. "Stop it"
+     * cancels it and asks again, once; "Keep it running" returns null.
+     */
+    private static JSONObject begin(Activity a, Context app,
+                                    java.util.function.Supplier<JSONObject> request) throws Exception {
+        JSONObject job = request.get();
+        if (!job.optBoolean("busy")) return job;
+        JSONObject other = post(app, "/api/intake", "GET", null);
+        if (!askStopOther(a, describe(a, other))) return null;
+        String id = other.optString("id", "");
+        post(app, id.isEmpty() ? "/api/intake" : "/api/intake?id=" + enc(id), "DELETE", null);
+        return request.get();
+    }
+
+    /** "oxford.mdx from example.org", as far as the server knows it yet. */
+    private static String describe(Activity a, JSONObject job) {
+        String file = job.optString("source", ""), host = job.optString("host", "");
+        if (!file.isEmpty() && !host.isEmpty()) return file + " (" + host + ")";
+        if (!file.isEmpty()) return file;
+        if (!host.isEmpty()) return host;
+        return a.getString(R.string.intake_other_unnamed);
+    }
+
+    private static boolean askStopOther(Activity a, String what) throws InterruptedException {
+        final boolean[] stop = new boolean[1];
+        final CountDownLatch latch = new CountDownLatch(1);
+        a.runOnUiThread(() -> {
+            if (a.isFinishing() || a.isDestroyed()) {
+                latch.countDown();
+                return;
+            }
+            new AlertDialog.Builder(a)
+                    .setTitle(R.string.intake_title)
+                    .setMessage(a.getString(R.string.intake_other_running, what))
+                    .setCancelable(false)
+                    .setPositiveButton(R.string.intake_other_stop, (d, w) -> {
+                        stop[0] = true;
+                        latch.countDown();
+                    })
+                    .setNegativeButton(R.string.intake_other_keep, (d, w) -> latch.countDown())
+                    .show();
+        });
+        if (!awaitAnswer(a, latch, CHOICE_TIMEOUT_MIN)) return false;
+        return stop[0];
+    }
+
+    /** Takes the job a successful start answered with as this shell's own. */
+    private static void claim(JSONObject job) {
+        String id = job.optString("id", "");
+        ownJob = id.isEmpty() ? null : id;
+    }
+
+    /**
+     * Lets go of this shell's job: cancels it on the server if it is still
+     * the current one, and does nothing if it is not. Called on every way out,
+     * so it is idempotent - the first call takes the id.
+     */
+    private static void release(Context app) {
+        String id = ownJob;
+        ownJob = null;
+        if (id != null) post(app, "/api/intake?id=" + enc(id), "DELETE", null);
+    }
+
+    /**
+     * Waits for a dialog's answer, and gives up when the activity that shows
+     * it is gone: a dialog dies with its window, and a latch nobody can count
+     * down would hold this import - and the server's slot - for the whole
+     * timeout. False when no answer came.
+     */
+    private static boolean awaitAnswer(Activity a, CountDownLatch latch, long minutes)
+            throws InterruptedException {
+        long deadline = System.nanoTime() + TimeUnit.MINUTES.toNanos(minutes);
+        while (System.nanoTime() < deadline) {
+            if (latch.await(1, TimeUnit.SECONDS)) return true;
+            if (a.isDestroyed()) return false;
+        }
+        return false;
     }
 
     /**
@@ -604,11 +717,11 @@ final class Intake {
         Choice chose = choose(a, name, cands, extras);
         if (chose == null) {
             cancelled = true;
-            post(app, "/api/intake", "DELETE", null);
+            release(app);
             return null;
         }
         if (chose.dicts.length == 0) {
-            post(app, "/api/intake", "DELETE", null);
+            release(app);
             return null;
         }
 
@@ -639,7 +752,7 @@ final class Intake {
             throws Exception {
         for (; ; ) {
             if (cancelled) {
-                post(app, "/api/intake", "DELETE", null);
+                release(app);
                 return null;
             }
             JSONObject j = post(app, "/api/intake", "GET", null);
@@ -883,7 +996,7 @@ final class Intake {
         });
         // A dialog whose window went away with the activity would otherwise
         // park this thread - and its server claim - for the life of the app.
-        if (!latch.await(CHOICE_TIMEOUT_MIN, TimeUnit.MINUTES)) return null;
+        if (!awaitAnswer(a, latch, CHOICE_TIMEOUT_MIN)) return null;
         return answer[0];
     }
 

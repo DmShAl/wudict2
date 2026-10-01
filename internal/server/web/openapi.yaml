@@ -978,9 +978,10 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '409':
           description: >
-            An import is already running, there is nothing to confirm, no
-            dictionary folder is configured, or a chosen dictionary is missing
-            files it cannot work without.
+            An import is already running (the body then also carries
+            `"busy": true`; `GET /api/intake` says which), there is nothing to
+            confirm, no dictionary folder is configured, or a chosen
+            dictionary is missing files it cannot work without.
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
@@ -1043,7 +1044,18 @@ paths:
         Stops an extraction and forgets a sniffed archive that was never
         confirmed. Everything staged is removed; dictionaries already renamed
         into the library stay, because they are whole. Always 200 - cancelling
-        nothing is not a failure.
+        nothing is not a failure. With `id`, only that job is cancelled, and
+        only while it is still the current one: a client releasing its own
+        job never cancels one another client started since.
+
+        A download that nobody has confirmed and nobody has polled for 75
+        seconds is not "running" any more: a new import replaces it instead of
+        being refused. A confirmed import is never replaced.
+      parameters:
+        - name: id
+          in: query
+          description: The job to cancel (`id` from the job). Omit to cancel whatever is current.
+          schema: { type: string }
       x-codeSamples:
         - lang: Shell
           label: curl
@@ -1051,7 +1063,9 @@ paths:
             curl -s -X DELETE 'http://127.0.0.1:6888/api/intake'
       responses:
         '200':
-          description: Nothing is running now.
+          description: >
+            Without `id`, nothing is running now. With `id`, the job that is
+            current afterwards (empty when that was the one cancelled).
           content:
             application/json:
               schema: { $ref: '#/components/schemas/IntakeJob' }

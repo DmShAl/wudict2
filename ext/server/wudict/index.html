@@ -255,6 +255,19 @@ function splitLinks(s) {
 // A Drive link is the file's viewer page; its name is only known to Drive.
 const isDrive = u => /^(drive|docs)\.google\.com$/i.test(u.hostname);
 const siteName = u => isDrive(u) ? "Google Drive" : u.hostname;
+// A Drive link at its shortest: "/view?usp=drive_link" is the viewer's, not
+// the file's, and is a third of every link in a long share link. wudict reads
+// the short form the same way.
+function shortDrive(u) {
+  const m = isDrive(u) && u.pathname.match(/^\/file\/(?:u\/\d+\/)?d\/([\w-]{10,})/);
+  if (!m) return u.href;
+  const key = u.searchParams.get("resourcekey");
+  return "https://drive.google.com/file/d/" + m[1] + (key ? "?resourcekey=" + encodeURIComponent(key) : "");
+}
+// Where a share link stops being safe to send. Telegram cuts messages at 4,096
+// characters, and a cut link loses its last files without saying so. And the
+// most files wudict reads from one link (intake maxLinks).
+const SAFE_LINK_CHARS = 4000, MAX_FILES = 500;
 const KIWIX = l => "https://download.kiwix.org/zim/wiktionary_" + l + "_all_nopic.zim";
 const FD = (pair, ver) => "https://download.freedict.org/dictionaries/" + pair + "/" + ver + "/freedict-" + pair + "-" + ver + ".slob";
 
@@ -552,7 +565,15 @@ function makeLink() {
     us.push(u);
   }
   if (us.some(u => u.protocol === "http:")) err.textContent = "wudict only downloads over https unless told otherwise.";
-  const link = wudictLink(us.map(u => u.href));
+  const link = wudictLink(us.map(shortDrive));
+  if (us.length > MAX_FILES) {
+    err.textContent = "That is " + us.length + " links; wudict reads the first " + MAX_FILES +
+      " from one share link. Put them in a .txt list and share a link to the list.";
+  } else if (link.length > SAFE_LINK_CHARS) {
+    err.textContent = "This link is " + link.length.toLocaleString() + " characters long. Some messengers " +
+      "cut long messages (Telegram at 4,096), and a cut link quietly loses its last files. For this many " +
+      "files, put the links in a .txt list and share a link to the list.";
+  }
   out.textContent = link; btn.disabled = false;
   tryIt.href = link; tryIt.classList.remove("hidden");
 }

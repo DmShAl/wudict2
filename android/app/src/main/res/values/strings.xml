@@ -229,6 +229,14 @@
      <string name="intake_unsupported">wuDict cannot read %1$s.</string>
      <string name="intake_cancelled">Cancelled.</string>
      <string name="intake_busy">An import is already running.</string>
+     <!-- The server's import slot is held by an import nothing on this
+          phone is showing - one started before the app was last closed, or
+          from the setup page. The user decides: the shell cannot tell a
+          forgotten import from one that is wanted. %1$s names it. -->
+     <string name="intake_other_running">Another import is still running: %1$s.\n\nStop it and add this one instead?</string>
+     <string name="intake_other_unnamed">an earlier import</string>
+     <string name="intake_other_stop">Stop it</string>
+     <string name="intake_other_keep">Keep it running</string>
      <string name="intake_failed">Could not add dictionaries: %1$s</string>
      <string name="intake_no_server">The dictionary server did not start, so nothing could be added.</string>
      <string name="intake_no_picker">This device has no file picker.</string>

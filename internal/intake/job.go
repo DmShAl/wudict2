@@ -20,6 +20,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/wuweidict/wudict/internal/dict"
 )
@@ -185,6 +186,13 @@ type jobState struct {
 	// the confirmed download's size, which each row's progress counts toward.
 	coll  *collection
 	total int64
+
+	// seen is when anybody last asked about this job - its start, a status
+	// poll, a confirmation. confirmed is whether the user has chosen what to
+	// install. Together they tell an abandoned job from a running one; see
+	// busyLocked.
+	seen      time.Time
+	confirmed bool
 }
 
 // Begin reads the archive and reports what is in it, without extracting
@@ -219,8 +227,9 @@ func (m *Manager) Begin(dest string, src Source) (Job, error) {
 		name = filepath.Base(src.Path)
 	}
 	j := &jobState{
-		src: src,
-		pub: Job{ID: jobID(), State: StateReady, Source: name, Candidates: cands},
+		src:  src,
+		pub:  Job{ID: jobID(), State: StateReady, Source: name, Candidates: cands},
+		seen: time.Now(),
 	}
 	m.cur = j
 	return j.pub.copy(), nil
@@ -270,7 +279,8 @@ func (m *Manager) BeginURL(dest, raw string, f Fetcher) (Job, error) {
 		// The name of the file is not known until the server answers, so the
 		// job starts with only the host and fills Source in from the first
 		// progress report (see Progress).
-		pub: Job{ID: jobID(), State: StateDownloading, Host: u.Hostname()},
+		pub:  Job{ID: jobID(), State: StateDownloading, Host: u.Hostname()},
+		seen: time.Now(),
 	}
 	m.cur = j
 	// Snapshot under the lock: the worker below starts writing pub fields
@@ -373,7 +383,8 @@ func (m *Manager) beginPasted(dest string, l listing, f Fetcher) (Job, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	j := &jobState{
 		dest: dest, fetch: f, cancel: cancel,
-		pub: Job{ID: jobID(), State: StateDownloading, Host: host},
+		pub:  Job{ID: jobID(), State: StateDownloading, Host: host},
+		seen: time.Now(),
 	}
 	m.cur = j
 	pub := j.pub.copy()
@@ -449,10 +460,34 @@ func (m *Manager) library() []string {
 // busyLocked reports whether the current job is doing work that a new one
 // would interrupt. A ready or finished job is not busy - replacing it is how a
 // user imports a second archive.
+//
+// Nor is an ABANDONED one: a download nobody has confirmed and nobody has
+// asked about for orphanAfter. Every client that starts an import watches it
+// (the page and the Android shell poll several times a second), so silence
+// means the watcher is gone - an app process killed while the server it
+// started lives on, a tab closed - and the job would otherwise hold the one
+// import slot until it finished, invisible, refusing every new link with "an
+// import is already running" and nothing on any screen to cancel. Replacing
+// it loses nothing: a download resumes from its .part the next time the same
+// link is opened. A confirmed job is the user's decision and is left to run.
 func (m *Manager) busyLocked() bool {
-	return m.cur != nil &&
-		(m.cur.pub.State == StateInstalling || m.cur.pub.State == StateDownloading)
+	j := m.cur
+	if j == nil {
+		return false
+	}
+	switch j.pub.State {
+	case StateInstalling:
+		return true
+	case StateDownloading:
+		return j.confirmed || time.Since(j.seen) < orphanAfter
+	}
+	return false
 }
+
+// orphanAfter is how long an unconfirmed download may go unwatched before a
+// new import may replace it. Watchers poll every 700 ms; a browser tab in the
+// background may be throttled to one timer a minute, hence the margin over it.
+var orphanAfter = 75 * time.Second // a variable for the tests
 
 // Confirm starts extracting the candidates named by pick - indexes into the
 // job's Candidates - into dest. It returns as soon as the work is running: an
@@ -477,6 +512,7 @@ func (m *Manager) Confirm(dest string, pick []int, opts Options) (Job, error) {
 	case j.pub.State != StateReady:
 		return Job{}, ErrNoJob
 	}
+	j.seen = time.Now()
 	if j.coll != nil {
 		return m.confirmCollectionLocked(j, dest, pick, opts)
 	}
@@ -512,6 +548,7 @@ func (m *Manager) Confirm(dest string, pick []int, opts Options) (Job, error) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	j.dest, j.stage, j.keep, j.cancel = dest, stage, opts.Keep, cancel
+	j.confirmed = true
 	j.pub.State, j.pub.Total, j.pub.Done = StateInstalling, total, 0
 	if len(extras) > 0 {
 		// The download comes first and is what the user watches; the install
@@ -826,6 +863,7 @@ func (m *Manager) confirmCollectionLocked(j *jobState, dest string, pick []int, 
 
 	ctx, cancel := context.WithCancel(context.Background())
 	j.dest, j.keep, j.cancel, j.total = dest, opts.Keep, cancel, total
+	j.confirmed = true
 	j.pub.State, j.pub.Done, j.pub.Total, j.pub.Source = StateDownloading, 0, total, ""
 	m.wg.Add(1)
 	go func() {
@@ -1182,12 +1220,15 @@ func keepMedia(old, sub string, c Candidate) (restore func(), err error) {
 // Status is the current job, or the zero Job when there is none. Never an
 // error: "nothing is happening" is an answer a poller needs to be able to act
 // on without distinguishing it from a failure to ask.
+// Asking is watching: it is what keeps an unconfirmed download from being
+// taken for abandoned (busyLocked).
 func (m *Manager) Status() Job {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.cur == nil {
 		return Job{}
 	}
+	m.cur.seen = time.Now()
 	return m.cur.pub.copy()
 }
 
@@ -1199,6 +1240,20 @@ func (m *Manager) Cancel() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.clearLocked()
+}
+
+// CancelID is Cancel for one job: it stops the current job only while that is
+// still the job with this id. A client tidying up after itself must not take
+// down an import another client has started since - which an unscoped cancel,
+// sent a moment too late, would do. It reports whether it cancelled anything.
+func (m *Manager) CancelID(id string) bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.cur == nil || m.cur.pub.ID != id {
+		return false
+	}
+	m.clearLocked()
+	return true
 }
 
 // clearLocked forgets the current job, stopping it first if it is running.

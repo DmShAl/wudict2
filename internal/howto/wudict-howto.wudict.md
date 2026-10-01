@@ -36,7 +36,7 @@ Type `wudict help` in the search box for quick access, and [browse](/browse?dict
 - Apply custom CSS styles and fonts via the embedded Styler: <kbd>☰</kbd> → <kbd>⚙️</kbd> → <kbd>**Custom Style**</kbd>
 - Import dictionaries into wudict directly from your file manager: tap a `.mdx/.dsl/.bgl/.zim/.slob/.zip/.7z/.wudict.md` file → <kbd>Share</kbd> → <kbd>**wuDict**</kbd>
 - Long-tap a dictionary download link on any web page (`.mdx/.slob/.dsl/.zip/.7z`) and pick <kbd>Share</kbd> → <kbd>**wuDict**</kbd> to install it locally
-- Share and install single dictionaries and dictionary collections via specially crafted [🔗wudict URL](https://legbehindneck.com/wudict)
+- Share and install single dictionaries and dictionary collections via specially crafted [🔗wudict URLs](https://legbehindneck.com/wudict)
 
 📱 Android only · 💻 desktop only · everything else works on both.
 
