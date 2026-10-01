@@ -211,10 +211,20 @@ AAB_PLAY           := android/app/build/outputs/bundle/playRelease/$(BINARY)-pla
 print-%: ## print the value of a make variable, e.g. make -s print-APK_FOSS
 	@echo '$($*)'
 
-# Gradle needs JDK 17+. Respect an inherited JAVA_HOME; on macOS fall back to
-# an installed JDK 17 rather than whatever ancient default `java` resolves to.
+# Gradle needs JDK 17+; we build on 21, as CI does. Respect an inherited
+# JAVA_HOME; on macOS fall back to an installed JDK 21 rather than whatever
+# ancient default `java` resolves to. There is no gradle-daemon-jvm.properties:
+# its toolchain URLs had Gradle download a JDK mid-build, which F-Droid's
+# offline build server neither allows nor needs.
+#
+# "Respect" stops at a JDK Gradle cannot run on: an inherited JAVA_HOME older
+# than 17 (a JDK 11 left in a shell profile is common) is replaced too, read
+# from the JDK's own `release` file ("1.8.0_x" counts as 8).
+JAVA_MAJOR := $(shell sed -n 's/^JAVA_VERSION="\(1\.\)\{0,1\}\([0-9]*\).*/\2/p' "$(JAVA_HOME)/release" 2>/dev/null)
 ifeq ($(shell uname),Darwin)
-export JAVA_HOME ?= $(shell /usr/libexec/java_home -v 21 2>/dev/null)
+ifneq ($(shell test "0$(JAVA_MAJOR)" -ge 17 2>/dev/null && echo ok),ok)
+export JAVA_HOME := $(shell /usr/libexec/java_home -v 21 2>/dev/null)
+endif
 endif
 
 .PHONY: android-go
@@ -304,6 +314,20 @@ apk-play-release: $(KEYSTORE_GUARD) android-go ## Build the Play-flavour release
 .PHONY: apk-play-release-install
 apk-play-release-install: apk-play-release ## build Play release and install via adb
 	adb install "$(APK_PLAY)"
+
+.PHONY: android-deps android-trackers
+android-deps: ## Print the Android app's whole Gradle dependency graph (what F-Droid's scanner reads)
+	cd android && ./gradlew -q :app:dependencies
+
+# The coordinates F-Droid's scanner flags as Tracker, in every configuration -
+# test-platform ones included, which never reach the APK but are scanned all
+# the same (io.opencensus arrived exactly that way; see app/build.gradle).
+TRACKERS := io\.opencensus|com\.google\.firebase|com\.google\.android\.gms|crashlytics|io\.sentry|com\.google\.android\.datatransport
+android-trackers: ## Fail if any Gradle configuration of the Android app resolves a tracker F-Droid flags
+	@out=$$(cd android && ./gradlew -q :app:dependencies) || exit 1; \
+	if printf '%s\n' "$$out" | grep -E '$(TRACKERS)'; then \
+	  echo "error: tracker coordinates in the Gradle graph - F-Droid flags these"; exit 1; fi; \
+	echo "no tracker coordinates in any configuration"
 
 .PHONY: aab-play
 aab-play: android-go ## Build the Play release bundle (unsigned: Play App Signing owns the key)
