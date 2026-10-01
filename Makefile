@@ -327,6 +327,38 @@ android-trackers: ## Fail if any Gradle coordinate of the Android app matches an
 	@cd android && ./gradlew -q :app:dependencies > build/dependencies.txt
 	@python3 tools/fdroid-trackers.py android/build/dependencies.txt
 
+# F-Droid's bot labels the RFP insecure-gradlew unless the wrapper downloads
+# Gradle over https from services.gradle.org, pins the download with
+# distributionSha256Sum, and commits the official wrapper jar of that very
+# version (issuebot modules/gradle-wrapper.py). Upgrading by hand loses the
+# checksum, so upgrade with android-wrapper and let android-wrapper-check say
+# whether the three still hold.
+.PHONY: android-wrapper android-wrapper-check android-fdroid
+android-wrapper: ## Upgrade the Gradle wrapper with its checksum pinned: make android-wrapper GRADLE=9.6.1
+	@test -n "$(GRADLE)" || { echo "usage: make android-wrapper GRADLE=<version>"; exit 2; }
+	@sum=$$(curl -fsSL "https://services.gradle.org/distributions/gradle-$(GRADLE)-bin.zip.sha256") || exit 1; \
+	cd android && ./gradlew -q wrapper --gradle-version $(GRADLE) --distribution-type bin \
+	  --gradle-distribution-sha256-sum $$sum && \
+	./gradlew -q wrapper  # again, so the jar and scripts are the NEW version's own
+	@$(MAKE) -s android-wrapper-check
+
+android-wrapper-check: ## Check the Gradle wrapper as F-Droid's bot does (https, pinned checksum, official jar)
+	@p=android/gradle/wrapper/gradle-wrapper.properties; \
+	url=$$(sed -n 's/^distributionUrl=//p' $$p | sed 's/\\:/:/'); \
+	case "$$url" in https://services.gradle.org/distributions/gradle-*) ;; \
+	  *) echo "error: distributionUrl must be https://services.gradle.org/distributions/...: $$url"; exit 1;; esac; \
+	have=$$(sed -n 's/^distributionSha256Sum=//p' $$p); \
+	want=$$(curl -fsSL "$$url.sha256") || { echo "error: cannot fetch $$url.sha256"; exit 1; }; \
+	[ -n "$$have" ] || { echo "error: $$p has no distributionSha256Sum (want $$want)"; exit 1; }; \
+	[ "$$have" = "$$want" ] || { echo "error: distributionSha256Sum=$$have, but $$url.sha256 is $$want"; exit 1; }; \
+	jar=$$(echo "$$url" | sed -E 's/-(bin|all)\.zip$$/-wrapper.jar/'); \
+	jwant=$$(curl -fsSL "$$jar.sha256") || { echo "error: cannot fetch $$jar.sha256"; exit 1; }; \
+	jhave=$$(shasum -a 256 android/gradle/wrapper/gradle-wrapper.jar | cut -d' ' -f1); \
+	[ "$$jhave" = "$$jwant" ] || { echo "error: gradle-wrapper.jar ($$jhave) is not the official $$(basename $$jar)"; exit 1; }; \
+	echo "gradle wrapper: https, distributionSha256Sum pinned, jar is the official $$(basename $$jar)"
+
+android-fdroid: android-wrapper-check android-trackers ## Everything F-Droid's bot flagged on the RFP, checked locally
+
 .PHONY: aab-play
 aab-play: android-go ## Build the Play release bundle (unsigned: Play App Signing owns the key)
 	cd android && ./gradlew bundlePlayRelease $(GRADLE_VERSION)
