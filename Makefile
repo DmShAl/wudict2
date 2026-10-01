@@ -319,15 +319,13 @@ apk-play-release-install: apk-play-release ## build Play release and install via
 android-deps: ## Print the Android app's whole Gradle dependency graph (what F-Droid's scanner reads)
 	cd android && ./gradlew -q :app:dependencies
 
-# The coordinates F-Droid's scanner flags as Tracker, in every configuration -
-# test-platform ones included, which never reach the APK but are scanned all
-# the same (io.opencensus arrived exactly that way; see app/build.gradle).
-TRACKERS := io\.opencensus|com\.google\.firebase|com\.google\.android\.gms|crashlytics|io\.sentry|com\.google\.android\.datatransport
-android-trackers: ## Fail if any Gradle configuration of the Android app resolves a tracker F-Droid flags
-	@out=$$(cd android && ./gradlew -q :app:dependencies) || exit 1; \
-	if printf '%s\n' "$$out" | grep -E '$(TRACKERS)'; then \
-	  echo "error: tracker coordinates in the Gradle graph - F-Droid flags these"; exit 1; fi; \
-	echo "no tracker coordinates in any configuration"
+# Every coordinate of every configuration - test-platform ones included, which
+# never reach the APK but are scanned all the same (io.opencensus arrived
+# exactly that way; see app/build.gradle) - against the lists fdroidserver's
+# scanner loads: SUSS, Exodus and ETIP, fetched and cached for a day.
+android-trackers: ## Fail if any Gradle coordinate of the Android app matches an F-Droid scanner signature (SUSS, Exodus, ETIP)
+	@cd android && ./gradlew -q :app:dependencies > build/dependencies.txt
+	@python3 tools/fdroid-trackers.py android/build/dependencies.txt
 
 .PHONY: aab-play
 aab-play: android-go ## Build the Play release bundle (unsigned: Play App Signing owns the key)
