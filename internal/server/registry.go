@@ -614,6 +614,11 @@ func (e *entry) open() (dict.Dictionary, error) {
 	// Read before the open, so the recorded resolution is the one this open
 	// actually acted on rather than whatever disk looked like once it finished.
 	backing, sig := backingDB(e.Path), sourceSig(e.Path)
+	// dsl, bgl and wudict markdown prepare themselves inside Open, and a
+	// re-prepare ends in a rename over text.db - which a backend superseded
+	// moments ago (a rescan that saw the source change) may still hold through
+	// its closeGrace. Fatal only on Windows; see registry_windows.go.
+	releaseSuperseded(e)
 	d, err = openUpgradedOrDirect(e.Path)
 	e.dMu.Lock()
 	e.d, e.err, e.backing, e.srcSig = d, err, backing, sig

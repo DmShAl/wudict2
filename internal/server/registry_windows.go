@@ -45,3 +45,19 @@ func releasePrepared(e *entry, textDB string) {
 	e.forgetStyles()
 	scheduleReclaim()
 }
+
+// releaseSuperseded closes, now, the backends this entry has retired and not
+// yet closed - before an open that may re-prepare the dictionary in place.
+//
+// The case: the source is edited, a rescan sees it (revalidate) and retires
+// the backend opened against the old edition, and the next open runs the
+// format's own first-open ingest (dsl, bgl, wudict markdown), which ends in a
+// rename over the text.db that retired backend still has open. Windows refuses
+// that rename ("Access is denied"); rebuild never met it because it goes
+// through releasePrepared, which closes the retired set first. Here nothing is
+// lost by closing early: the entry is opening because it has no backend, so a
+// retired one can only be serving a request that began before the change - on
+// data that is being replaced.
+func releaseSuperseded(e *entry) {
+	e.retired.closeAll()
+}
