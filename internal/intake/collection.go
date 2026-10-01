@@ -114,6 +114,80 @@ func Unwrap(s string) string {
 	return inner
 }
 
+// UnwrapAll is Unwrap for a share link that carries several links:
+//
+//	https://legbehindneck.com/wudict#https://a.org/x.mdx,https://b.org/x.mdd
+//
+// The fragment is split where a new link begins - "http://" or "https://"
+// right after a separator: a comma, a semicolon, a bar or whitespace, written
+// plainly or %-escaped as a messenger may have rewritten it. A separator must
+// precede the scheme, so a link that carries another inside its query
+// ("?u=https://…") stays whole, and a comma inside a link is only a separator
+// when a link starts right after it. Anything that is not such a list is
+// Unwrap's single answer.
+func UnwrapAll(s string) []string {
+	one := Unwrap(s)
+	if one == strings.TrimSpace(s) {
+		return []string{one} // not a share link
+	}
+	starts := linkStarts(one)
+	if len(starts) < 2 || starts[0] != 0 {
+		return []string{one}
+	}
+	out := make([]string, 0, len(starts))
+	for i, at := range starts {
+		end := len(one)
+		if i+1 < len(starts) {
+			end = starts[i+1]
+		}
+		if v := trimSeparators(one[at:end]); v != "" {
+			out = append(out, v)
+		}
+	}
+	return out
+}
+
+// linkSeparators are what may stand between two links in a share link, plain
+// and %-escaped (space, comma, semicolon, bar, newline).
+var linkSeparators = []string{" ", "\t", "\n", "\r", ",", ";", "|",
+	"%20", "%2C", "%2c", "%3B", "%3b", "%7C", "%7c", "%0A", "%0a", "%0D", "%0d", "%09"}
+
+// linkStarts lists where a link begins in s: at 0, or after a separator.
+func linkStarts(s string) []int {
+	lower := strings.ToLower(s)
+	var out []int
+	for i := 0; i < len(lower); i++ {
+		if !strings.HasPrefix(lower[i:], "https://") && !strings.HasPrefix(lower[i:], "http://") {
+			continue
+		}
+		if i == 0 {
+			out = append(out, i)
+			continue
+		}
+		for _, sep := range linkSeparators {
+			if strings.HasSuffix(s[:i], sep) {
+				out = append(out, i)
+				break
+			}
+		}
+	}
+	return out
+}
+
+// trimSeparators strips the separators that end one link of a list.
+func trimSeparators(s string) string {
+	for {
+		t := strings.TrimSpace(s)
+		for _, sep := range linkSeparators {
+			t = strings.TrimSuffix(t, sep)
+		}
+		if t == s {
+			return t
+		}
+		s = t
+	}
+}
+
 // listing is what a folder page, a list or pasted text named.
 type listing struct {
 	title string
@@ -145,8 +219,10 @@ func parseText(text string, base *url.URL) listing {
 		}
 		if found := linksIn(line); len(found) > 0 {
 			for _, s := range found {
-				if u, err := url.Parse(Unwrap(s)); err == nil {
-					l.links = append(l.links, u)
+				for _, w := range UnwrapAll(s) {
+					if u, err := url.Parse(w); err == nil {
+						l.links = append(l.links, u)
+					}
 				}
 			}
 			continue
@@ -226,6 +302,11 @@ func fetchListing(ctx context.Context, f Fetcher, raw string) (listing, error) {
 	if err != nil {
 		return listing{}, err
 	}
+	// A Nextcloud share's page is drawn by script and names no file; its
+	// WebDAV listing does (nextcloud.go).
+	if l, ok, err := shareListing(ctx, f, u); ok {
+		return l, err
+	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
 	if err != nil {
 		return listing{}, err
@@ -249,6 +330,11 @@ func fetchListing(ctx context.Context, f Fetcher, raw string) (listing, error) {
 	if !isHTML && !isText {
 		return listing{}, ErrNotArchive
 	}
+	if isHTML && driveID(u) != "" {
+		// Drive's download address answers with a page only when it will not
+		// hand the file over; the page's links are Google's, not a folder.
+		return listing{}, ErrDriveRefused
+	}
 	body, err := io.ReadAll(io.LimitReader(resp.Body, maxListBytes+1))
 	if err != nil {
 		return listing{}, err
@@ -263,7 +349,11 @@ func fetchListing(ctx context.Context, f Fetcher, raw string) (listing, error) {
 		l = parseText(string(body), base)
 	}
 	if l.title == "" {
-		l.title = titleOf(base)
+		if n := dispositionName(resp.Header); n != "" && driveID(u) != "" {
+			l.title = strings.TrimSuffix(n, ".txt") // "download" says nothing
+		} else {
+			l.title = titleOf(base)
+		}
 	}
 	return l, nil
 }
@@ -317,12 +407,29 @@ func build(ctx context.Context, f Fetcher, dest string, lib []string, l listing)
 	if len(files) == 0 {
 		return collection{}, ErrNoLinks
 	}
-	describe(ctx, f, files)
-	var alive []*remoteFile
+	drive := false
 	for _, rf := range files {
-		if rf != nil {
-			alive = append(alive, rf)
+		if u, err := url.Parse(rf.url); err == nil && driveID(u) != "" {
+			drive = true
 		}
+	}
+	describe(ctx, f, files)
+	// Only now is every name known: a Drive file was named by the server's
+	// answer, or by nothing - and then Drive sent a page, not the file. Two links can turn out to be one name; the first stays.
+	var alive []*remoteFile
+	named := map[string]bool{}
+	for _, rf := range files {
+		if rf == nil || !takeable(rf.name) || named[strings.ToLower(rf.name)] {
+			continue
+		}
+		named[strings.ToLower(rf.name)] = true
+		alive = append(alive, rf)
+	}
+	if len(alive) == 0 && ctx.Err() == nil {
+		if drive {
+			return collection{}, ErrDriveRefused
+		}
+		return collection{}, ErrNoLinks
 	}
 	if l.text {
 		alive = append(alive, companionsOf(ctx, f, alive)...)
@@ -398,6 +505,11 @@ func build(ctx context.Context, f Fetcher, dest string, lib []string, l listing)
 // policy allows, first occurrence winning for a name. A name, not a URL, is
 // the identity, because the files meet again in one download folder where
 // two "oxford.mdx" cannot both exist.
+//
+// A Google Drive file is the one link kept although its URL names no file: its
+// address is an id (drive.go). The server names it in its answer to describe's
+// HEAD, and build drops it if it does not. Any other link without such a name
+// is not asked about - a folder page's parents, sort orders and stylesheets.
 func pickFiles(f Fetcher, links []*url.URL) []*remoteFile {
 	seen := map[string]bool{}
 	var out []*remoteFile
@@ -410,21 +522,31 @@ func pickFiles(f Fetcher, links []*url.URL) []*remoteFile {
 		}
 		v := *u
 		v.Fragment, v.RawFragment = "", ""
-		if _, err := f.Check(v.String()); err != nil {
+		c, err := f.Check(v.String()) // c: what is fetched, a Drive page rewritten
+		if err != nil {
 			continue
 		}
-		name := safeDirName(nameFromURL(&v))
-		if !SupportedArchive(name) && dict.ClassifyName(name) == dict.KindOther {
+		name, key := safeDirName(nameFromURL(c)), ""
+		if takeable(name) {
+			key = strings.ToLower(name)
+		} else if driveID(c) != "" {
+			name, key = "", "\x00"+c.String()
+		} else {
 			continue
 		}
-		key := strings.ToLower(name)
 		if seen[key] {
 			continue
 		}
 		seen[key] = true
-		out = append(out, &remoteFile{name: name, url: v.String()})
+		out = append(out, &remoteFile{name: name, url: c.String()})
 	}
 	return out
+}
+
+// takeable reports a name this build can take: a dictionary, one of its
+// companions, or an archive.
+func takeable(name string) bool {
+	return name != "" && (SupportedArchive(name) || dict.ClassifyName(name) != dict.KindOther)
 }
 
 // describe asks the site about each file, headWorkers at a time, and clears
@@ -454,6 +576,9 @@ func describe(ctx context.Context, f Fetcher, files []*remoteFile) {
 				return
 			}
 			files[i].size, files[i].modified = h.size, h.modified
+			if files[i].name == "" && h.name != "" {
+				files[i].name = safeDirName(h.name)
+			}
 		}(i)
 	}
 	wg.Wait()

@@ -98,7 +98,8 @@ func probeCompanions(ctx context.Context, f Fetcher, base *url.URL, fileName, di
 // already, or listed by the collection the file came from (collection.go).
 func probeSiblings(ctx context.Context, f Fetcher, base *url.URL, fileName string, known func(string) bool) []Extra {
 	stem := dict.Stem(fileName)
-	if stem == "" {
+	if stem == "" || driveID(base) != "" {
+		// A Drive file's address is its id: there is no "beside it" to ask.
 		return nil
 	}
 	var out []Extra
@@ -242,6 +243,7 @@ type head struct {
 	size     int64
 	modified time.Time
 	found    bool
+	name     string // Content-Disposition's file name, when the server sent one
 }
 
 // headInfo asks whether a URL is there, how big it is and how old. A HEAD
@@ -287,11 +289,12 @@ func probe(ctx context.Context, f Fetcher, u *url.URL, method, rng string) (h he
 			// The server ignored the range and is about to send the whole
 			// file; it exists, and its length is the one header we can trust
 			// least here, so it is left unstated rather than guessed.
-			return head{modified: mod, found: true}, true
+			return head{modified: mod, found: true, name: dispositionName(resp.Header)}, true
 		}
-		return head{size: max(resp.ContentLength, 0), modified: mod, found: true}, true
+		return head{size: max(resp.ContentLength, 0), modified: mod, found: true, name: dispositionName(resp.Header)}, true
 	case http.StatusPartialContent:
-		return head{size: contentRangeTotal(resp.Header.Get("Content-Range")), modified: mod, found: true}, true
+		return head{size: contentRangeTotal(resp.Header.Get("Content-Range")), modified: mod, found: true,
+			name: dispositionName(resp.Header)}, true
 	case http.StatusMethodNotAllowed, http.StatusNotImplemented, http.StatusForbidden:
 		return head{}, method != http.MethodHead
 	}

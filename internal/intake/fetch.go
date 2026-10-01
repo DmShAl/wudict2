@@ -152,11 +152,16 @@ func linkSegment(s string) string {
 
 // Check validates a URL against the policy without contacting anything, so a
 // refusal is immediate and no job is claimed for a link that was never going
-// to be fetched.
+// to be fetched. A Google Drive file link comes back as the address of the
+// file itself (drive.go): it is that address which is fetched, so it is that
+// address the policy judges.
 func (f Fetcher) Check(raw string) (*url.URL, error) {
 	u, err := url.Parse(strings.TrimSpace(raw))
 	if err != nil || u.Host == "" {
 		return nil, errors.New("that is not a link")
+	}
+	if d, ok := driveDirect(u); ok {
+		u = d
 	}
 	switch strings.ToLower(u.Scheme) {
 	case "https":
@@ -273,7 +278,7 @@ func (f Fetcher) Fetch(ctx context.Context, dest, raw string, progress Progress)
 	// The part name comes from the URL, and the FINAL name may come from a
 	// Content-Disposition header we have not seen yet - so resume identity is
 	// keyed on the URL in the sidecar, never on the file name.
-	base := safeDirName(nameFromURL(u))
+	base := partBase(u)
 	part := filepath.Join(dir, base+".part")
 	meta := part + ".meta"
 	sidecar := filepath.Join(dir, base+".done")
@@ -400,7 +405,7 @@ func renameDownload(dest, raw string, src Source, name string) (Source, error) {
 	if err != nil {
 		return Source{Path: to, Name: name}, nil
 	}
-	own := filepath.Join(dir, safeDirName(nameFromURL(u))+".done")
+	own := filepath.Join(dir, partBase(u)+".done")
 	forgetOthers(dir, name, own)
 	if b, err := os.ReadFile(own); err == nil {
 		var m doneMeta
@@ -781,14 +786,7 @@ func nameFromURL(u *url.URL) string {
 // even when the name is perfect.
 func archiveName(u *url.URL, resp *http.Response) (string, error) {
 	ct, _, _ := mime.ParseMediaType(resp.Header.Get("Content-Type"))
-	name := ""
-	if cd := resp.Header.Get("Content-Disposition"); cd != "" {
-		if _, params, err := mime.ParseMediaType(cd); err == nil {
-			// filename* (RFC 5987) is decoded by ParseMediaType and lands in
-			// the same key, so there is nothing extra to do for it here.
-			name = filepath.Base(strings.TrimSpace(params["filename"]))
-		}
-	}
+	name := dispositionName(resp.Header)
 	if !Installable(name) {
 		name = nameFromURL(u)
 	}
@@ -828,4 +826,23 @@ func archiveExtForType(ct string) string {
 		return ".7z"
 	}
 	return ""
+}
+
+// dispositionName is the file name a response's Content-Disposition gives, or
+// "". filename* (RFC 5987) is decoded by ParseMediaType and lands in the same
+// key, so there is nothing extra to do for it here.
+func dispositionName(h http.Header) string {
+	cd := h.Get("Content-Disposition")
+	if cd == "" {
+		return ""
+	}
+	_, params, err := mime.ParseMediaType(cd)
+	if err != nil {
+		return ""
+	}
+	name := filepath.Base(strings.TrimSpace(params["filename"]))
+	if name == "." || name == string(filepath.Separator) {
+		return ""
+	}
+	return name
 }

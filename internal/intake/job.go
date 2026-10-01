@@ -310,6 +310,8 @@ func (m *Manager) download(ctx context.Context, j *jobState, f Fetcher, raw stri
 			c, berr := build(ctx, f, j.dest, m.library(), l)
 			m.ready(j, c, l.title, berr)
 			return
+		} else if errors.Is(lerr, ErrDriveRefused) {
+			err = lerr
 		}
 	}
 	var cands []Candidate
@@ -385,6 +387,9 @@ func (m *Manager) beginPasted(dest string, l listing, f Fetcher) (Job, error) {
 		title := l.title
 		if title == "" {
 			title = host
+			if host == driveDownload.Hostname() {
+				title = "Google Drive"
+			}
 		}
 		m.ready(j, c, title, err)
 	}()

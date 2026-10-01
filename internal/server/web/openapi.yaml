@@ -850,7 +850,10 @@ paths:
         (one file name or link per line, the first `# ` line its title), or
         several links pasted at once - and a share link
         `https://legbehindneck.com/wudict#<link>` stands for the link after
-        `#` (`#/dict/x/` is short for a path on that site). Such a job is a `collection`: `ready` arrives with nothing
+        `#` (`#/dict/x/` is short for a path on that site), or for several
+        links after `#` separated by commas. A Google Drive file link
+        (`drive.google.com/file/d/<id>/view`) is fetched from Drive's download
+        address, and named by Drive's answer. Such a job is a `collection`: `ready` arrives with nothing
         downloaded, one candidate per dictionary sized and dated from the
         site's own headers, and each dictionary's media offered in `extras`.
         Confirming downloads and installs each chosen dictionary in turn; one
