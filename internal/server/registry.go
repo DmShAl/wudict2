@@ -1255,6 +1255,11 @@ func (r *Registry) Rescan() error {
 		if _, dropped := e.drop(true); dropped {
 			logx.V("rescan: %s is gone; closed it", filepath.Base(e.Path))
 		}
+		// Nothing can reach a gone entry again, so its grace protects no one -
+		// while on Windows the handle it would keep for closeGrace blocks
+		// deleting the library folder it held (an orphan removed right after
+		// the rescan that revealed it). See registry_windows.go.
+		releaseSuperseded(e)
 	}
 	return nil
 }
