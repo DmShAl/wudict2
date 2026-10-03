@@ -134,9 +134,10 @@ func TestSamePath(t *testing.T) {
 	dir := t.TempDir()
 	f := filepath.Join(dir, "f")
 	os.WriteFile(f, nil, 0o644)
-	wd, _ := os.Getwd()
-	rel, _ := filepath.Rel(wd, f)
-	if !SamePath(f, rel) || !SamePath(f, filepath.Join(dir, ".", "f")) {
+	// filepath.Rel from the working directory fails across Windows volumes
+	// (checkout on D:, TempDir on C:); a chdir makes the relative spelling exist.
+	t.Chdir(dir)
+	if !SamePath(f, "f") || !SamePath(f, filepath.Join(dir, ".", "f")) {
 		t.Error("the same file, spelled two ways")
 	}
 	if SamePath(f, "") || SamePath(f, filepath.Join(dir, "g")) {
