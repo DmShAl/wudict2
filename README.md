@@ -33,6 +33,9 @@ Windows and Android.
 DICT_DIR = ["~/Dictionaries", "/Volumes/Data/Dicts"]
 ```
 
+> [!TIP]
+> <sup>If you don't have yet a local dictionary collection you can download some FOSS dictionaries from the [links here](https://legbehindneck.com/wudict/).</sup>
+
 ## Features
 - Formats: MDict, StarDict, Aard2, DSL, Babylon, ZIM, wuDict markdown (a plain-text dictionary you can write in a text editor)
 - Instant search across all dictionaries with four modes: prefix, exact, contains, and full-text search
