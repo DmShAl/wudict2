@@ -5,7 +5,7 @@ the results in the browser at [localhost:6888](http://localhost:6888). One
 executable, no dependencies; runs on macOS, Linux (including Raspberry Pi),
 Windows and Android.
 
-Manual: [wudict.legbehindneck.com](https://wudict.legbehindneck.com/)
+📖 User Guide: [wudict.legbehindneck.com](https://wudict.legbehindneck.com/)
 
 ## Android
 
