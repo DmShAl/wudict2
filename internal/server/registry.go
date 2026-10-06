@@ -72,6 +72,7 @@ type upgraded struct {
 	medLink  *store.Links     // nil when there is no usable locator
 	medFet   resource.Fetcher // opened with the locator, over its containers
 	medTried bool             // locator open attempted and failed; cleared by a rebuild
+	medRetry time.Time        // a stale locator could not be deleted: not asked again before this
 	medBuild sync.Once        // one enumeration per process, however many misses
 }
 
@@ -207,7 +208,7 @@ func (u *upgraded) media(prov resource.Provider) ([]resource.Source, *store.Link
 			u.medSrc = prov.Sources(u.srcPath)
 		}
 	}
-	if u.medLink == nil && !u.medTried && prov.Open != nil {
+	if u.medLink == nil && !u.medTried && prov.Open != nil && !time.Now().Before(u.medRetry) {
 		u.medTried = true
 		if path := store.LinkSibling(u.Store.Meta().Path); path != "" && fsx.FileExists(path) {
 			links, err := store.OpenLinks(path, u.Store.UUID())
@@ -216,7 +217,14 @@ func (u *upgraded) media(prov resource.Provider) ([]resource.Source, *store.Link
 				// never did). Serving from it would hand back whatever now sits
 				// at those offsets, so it is deleted rather than distrusted.
 				logx.V("discarding %s: %v", filepath.Base(path), err)
-				_ = os.Remove(path)
+				if rerr := os.Remove(path); rerr != nil {
+					// Still open in a backend sitting out its closeGrace, and
+					// Windows refuses to delete an open file. Left as it was,
+					// the stale file would also stop recordLinks from writing
+					// a new one for the life of the process: asked again once
+					// that grace has run out.
+					u.medTried, u.medRetry = false, time.Now().Add(closeGrace)
+				}
 			} else if fet, ferr := prov.Open(links.Parts()); ferr != nil {
 				links.Close()
 			} else {

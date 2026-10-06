@@ -1768,7 +1768,7 @@ matchMedia("(prefers-color-scheme: dark)").addEventListener("change",syncAutoDar
 applyTheme(localStorage.getItem("wudict_theme")||"auto");
 
 /* ── dictionaries ──────────────────────────────────────────────────── */
-function dictLabel(d){return d.name||d.path.split("/").pop()}
+function dictLabel(d){return d.name||d.path.split(/[\\/]/).pop()}
 /* A DSL [ref dict="..."] names another dictionary by its #NAME, which is what
    dictLabel shows, so the name is matched against the label as well as the
    stored name - a dictionary whose file carries no #NAME is known here by its
