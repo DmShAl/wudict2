@@ -150,12 +150,12 @@ func TestDumpEntriesPrepared(t *testing.T) {
 	}
 	out := filepath.Join(t.TempDir(), "dump")
 	csvPath := filepath.Join(out, dumpBase(dbPath)+".csv")
-	n, _, err := dumpEntries(dbPath, out, csvPath)
+	res, err := dumpEntries(dbPath, out, csvPath)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if n != 2 {
-		t.Fatalf("wrote %d entries, want 2 (the redirect is an alias)", n)
+	if res.rows != 2 {
+		t.Fatalf("wrote %d entries, want 2 (the redirect is an alias)", res.rows)
 	}
 	if filepath.Base(csvPath) != "Test Dict.csv" {
 		t.Fatalf("csv name = %q", filepath.Base(csvPath))
@@ -214,12 +214,12 @@ func TestDumpEntriesNameless(t *testing.T) {
 		t.Fatal(err)
 	}
 	out := filepath.Join(dir, "out")
-	n, nameless, err := dumpEntries(src, out, filepath.Join(out, "n.csv"))
+	r, err := dumpEntries(src, out, filepath.Join(out, "n.csv"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if n != 2 || nameless != 2 {
-		t.Errorf("wrote %d, left out %d; want 2 and 2", n, nameless)
+	if r.rows != 2 || r.nameless != 2 {
+		t.Errorf("wrote %d, left out %d; want 2 and 2", r.rows, r.nameless)
 	}
 }
 
@@ -232,7 +232,7 @@ func TestDumpEntriesNoOutputOnFailure(t *testing.T) {
 		t.Fatal(err)
 	}
 	out := filepath.Join(dir, "out")
-	if _, _, err := dumpEntries(src, out, filepath.Join(out, "broken.csv")); err == nil {
+	if _, err := dumpEntries(src, out, filepath.Join(out, "broken.csv")); err == nil {
 		t.Fatal("dumping an unreadable file succeeded")
 	}
 	if _, err := os.Stat(out); !os.IsNotExist(err) {
@@ -296,7 +296,7 @@ func TestDumpEntriesPreparedNeverBword(t *testing.T) {
 	}
 	out := filepath.Join(t.TempDir(), "dump")
 	csvPath := filepath.Join(out, "B.csv")
-	if _, _, err := dumpEntries(dbPath, out, csvPath); err != nil {
+	if _, err := dumpEntries(dbPath, out, csvPath); err != nil {
 		t.Fatal(err)
 	}
 	b, err := os.ReadFile(csvPath)
