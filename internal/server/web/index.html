@@ -514,11 +514,25 @@ html:has(#panel.show) .bar{padding-right:var(--wd-sbw,0px)}
 /* the theme button only exists here on narrow screens, where the bar has no
    room for it; see the responsive block */
 #panelTheme{display:none}
-/* Identity, the text size and the close button, and nothing else (D143). With
-   55 dictionaries the ✕ must not be somewhere up the page, so this row never
-   scrolls. Nothing that spends disk or CPU belongs in it: top-right is the
-   most-clicked real estate in the panel (D31). */
+/* Identity, the text size, the close button and the dictionary filter, and
+   nothing else (D143 Am. 1). With 55 dictionaries the ✕ must not be somewhere
+   up the page, so this row never scrolls. Nothing that spends disk or starts
+   work on the server belongs in it: top-right is the most-clicked real estate
+   in the panel (D31). The filter only hides cards in this page. */
 .panel-head{flex:none;background:var(--bg);padding:var(--sp-3) 0 0}
+/* Finding one dictionary among a hundred. In the row that never scrolls, so
+   the field stays where it was typed into while the list under it shrinks.
+   Same field as the search box: the global input[type=search] rule, its ⌕ in
+   the left padding, and the native ✕ at the trailing edge. */
+.pfind{position:relative;display:flex;margin:0 0 var(--sp-2)}
+.pfind svg{position:absolute;left:.62em;top:50%;margin-top:-7px;width:14px;height:14px;
+  color:var(--fg-faint);pointer-events:none}
+/* ▲ ▼ and the drag handle place a card against neighbours in the WHOLE list,
+   which a filtered list does not show, so they leave. ⏫ ⏬ keep meaning the
+   same thing. */
+#panelList.filtered .ord [data-mv=up],#panelList.filtered .ord [data-mv=down],
+#panelList.filtered .grip{display:none}
+#panelList .nofind{margin:var(--sp-2);color:var(--fg-faint);font-size:12px}
 /* The master switch sits in the same right-hand column as the per-card ones,
    so the column reads as one control surface instead of a stray toggle
    (right padding = card padding + its 1px border). It sits DIRECTLY above
@@ -736,10 +750,10 @@ html:has(#panel.show) .bar{padding-right:var(--wd-sbw,0px)}
    font-family:inherit is not optional: #rescanBtn is a real <button>, and a
    button that does not ask for it renders in the UA stack, not var(--font). */
 .facts{display:flex;flex-wrap:wrap;gap:.45em;align-items:center;margin-top:.7em}
-/* The reading strip's row. Same left edge as the drawer beneath it (#folders'
-   own inline margin), so the two lines read as one block and not as a control
-   floating above a section. */
-.facts.reading{margin:.6em var(--sp-2) var(--sp-1)}
+/* The reading row: the first thing under the cog, apart from the setup row
+   below it by a little more than a row's own gap. Its left edge is #folders'
+   own inline margin. */
+.facts.reading{margin:.7em 0 .9em}
 .facts .act[hidden]{display:none}
 .facts .act{display:inline-flex;align-items:center;gap:.4em;
   font-family:inherit;font-size:11.5px;line-height:1.2;padding:.28em .6em;margin:0;
@@ -1096,80 +1110,81 @@ html:has(#panel.show) .bar{padding-right:var(--wd-sbw,0px)}
      elements carry .themeBtn and one handler drives the pair, the way the
      wordmark has two mount points selected by media query. -->
 <button type="button" class="btn themeBtn" id="panelTheme" title="Theme" aria-label="Toggle theme">◐</button>
-<button class="btn" id="closePanel" aria-label="Close">✕</button></span></h2></div>
+<button class="btn" id="closePanel" aria-label="Close">✕</button></span></h2>
+<!-- Not in a form: Enter has nothing to submit, it only puts the keyboard away. -->
+<label class="pfind"><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" d="M7.1 2.4a4.7 4.7 0 1 0 0 9.4 4.7 4.7 0 0 0 0-9.4zm3.6 8.3l3 3"/></svg>
+<input type="search" id="panelFind" placeholder="title or group" autocomplete="off" enterkeyhint="done" aria-label="Find a dictionary by title or group"></label></div>
 <div class="panel-scroll">
-<!-- The reading strip (D143). Two controls, admitted by one rule: nothing here
-     spends disk, CPU or navigation. They are what a reader reaches for WHILE
-     READING, so they are visible without opening anything; everything that
-     configures the machine is one click down, in the drawer below. No heading
-     over them — the controls name themselves (D102), and a third line of chrome
-     would cost more than it explains. -->
-<div class="facts reading">
-  <!-- Not in the top bar: a control that only bites in ONE search mode has no
-       business taking width away from the four that are used constantly (D102).
-       A highlighter pen, and aria-pressed rather than a checkbox, because the
-       row it joins is made of buttons and a lone checkbox would read as a
-       different kind of thing. -->
-  <button type="button" class="act" id="hlBtn" aria-pressed="true" title="Mark the words you searched for inside the article — full-text search only"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M9.4 1.9l4.7 4.7-5.6 5.6H3.8V7.5z"/><path d="M1.9 14.4h12.2"/></svg>Highlight matches</button>
-  <!-- Selecting text in an article offers a speaker that reads it aloud in a
-       system voice (D148). Here because it costs nothing until a reader
-       selects something, and a reader who never wants it should be able to
-       make the offer stop appearing. Hidden where the browser cannot speak. -->
-  <button type="button" class="act" id="speakBtn" aria-pressed="true" title="Offer to read selected article text aloud"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M2.5 6h2.5l3.5-3v10l-3.5-3H2.5z"/><path class="wave" d="M11 5.8a3 3 0 0 1 0 4.4"/><path class="wave" d="M12.9 3.9a5.8 5.8 0 0 1 0 8.2"/></svg>Read aloud</button>
-  <!-- Which sections unfold themselves once the answers start arriving
-       (D142). One question - what opens? - so one control. The count is of
-       dictionaries that HAVE a result, taken from the top of the list the
-       reader arranged below, so the same ones open in the same places every
-       time; 1 is the default (D144). "1, first to show a result" is the race
-       of D73, and only as a single section: several race winners would open
-       scattered down the list. A native <select> because the answer is one of
-       a closed set: nothing to check, the system picker on a phone, and it
-       does not look like the text-size −/+ (an amount, not a choice).
-       Up to 5 because that is about what a reader can compare at once, then
-       All, with no limit: the reader may trade speed for it. A larger number
-       set by hand in state.json is shown as its own choice. Wording in
-       ASD-STE100. -->
-  <label class="seg">
-    <span>Open</span>
-    <select id="openSel" title="These dictionaries open automatically, in the sequence of your list. Many open dictionaries can make the page slow.">
-      <option value="fast">1, first to show a result</option>
-      <option value="1">1</option>
-      <option value="2">2</option>
-      <option value="3">3</option>
-      <option value="4">4</option>
-      <option value="5">5</option>
-      <option value="all">All</option>
-    </select>
-  </label>
-  <!-- How the dictionary PICKER lists the library. A pair for the same reason
-       as the one above: both halves are orders, and neither is an "off".
-       It moves the picker and nothing else — this list below stays in the
-       user's own order because this is where that order is made, by dragging,
-       and a list that re-sorted itself under the drag could not express one.
-       Alphabetical is first and pressed: it is what the picker has always
-       done, so nothing moves for anyone who never touches this. -->
-  <span class="seg" role="group" aria-label="How the dictionary list is ordered">
-    <span>Sort dictionaries</span>
-    <button type="button" class="act" id="sortAZ" aria-pressed="true" title="List the dictionaries A→Z in the picker, whatever order you arranged them in here">Alphabetical</button>
-    <button type="button" class="act" id="sortOwn" aria-pressed="false" title="List the dictionaries in the picker the way you arranged them below">My order</button>
-  </span>
-  <!-- Which sections the picker offers above the names (D149). One switch per
-       section rather than one for all: a native <select> cannot fold a
-       section, so every open pays the full length, and what is worth that
-       length differs by reader - a one-language library has no use for
-       Publisher, a learner lives in Language pair. Independent toggles, so
-       not joined into one control like the pairs above. The buttons are
-       made from the sections the library actually yields; with none, the
-       row is hidden rather than offering switches that change nothing. -->
-  <span class="seg multi" id="groupSeg" role="group" aria-label="Sections the dictionary picker offers" hidden>
-    <span>Group by</span><span class="chips"></span>
-  </span>
-</div>
 <details id="folders">
-  <summary title="Folders &amp; setup" aria-label="Folders and setup">
+  <summary title="Settings and folders" aria-label="Settings and folders">
     <svg class="cog" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path fill="currentColor" fill-rule="evenodd" d="M6.56 1.05L9.44 1.05L9.07 2.81L10.91 3.57L11.90 2.07L13.93 4.10L12.43 5.09L13.19 6.93L14.95 6.56L14.95 9.44L13.19 9.07L12.43 10.91L13.93 11.90L11.90 13.93L10.91 12.43L9.07 13.19L9.44 14.95L6.56 14.95L6.93 13.19L5.09 12.43L4.10 13.93L2.07 11.90L3.57 10.91L2.81 9.07L1.05 9.44L1.05 6.56L2.81 6.93L3.57 5.09L2.07 4.10L4.10 2.07L5.09 3.57L6.93 2.81ZM5.50 8.00a2.50 2.50 0 1 0 5.00 0a2.50 2.50 0 1 0 -5.00 0Z"/></svg>
     <span class="fsum" id="folderSummary"></span>
     <span class="gwarn" id="groupsWarn" hidden>⚠</span></summary>
+  <!-- The reading row (D143 Am. 1). Settings a reader sets once and then
+       leaves: they live under the cog with the rest, so the dictionary list
+       starts right under the header. No heading over them — the controls name
+       themselves (D102). -->
+  <div class="facts reading">
+    <!-- Not in the top bar: a control that only bites in ONE search mode has no
+         business taking width away from the four that are used constantly (D102).
+         A highlighter pen, and aria-pressed rather than a checkbox, because the
+         row it joins is made of buttons and a lone checkbox would read as a
+         different kind of thing. -->
+    <button type="button" class="act" id="hlBtn" aria-pressed="true" title="Mark the words you searched for inside the article — full-text search only"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M9.4 1.9l4.7 4.7-5.6 5.6H3.8V7.5z"/><path d="M1.9 14.4h12.2"/></svg>Highlight matches</button>
+    <!-- Selecting text in an article offers a speaker that reads it aloud in a
+         system voice (D148). Here because it costs nothing until a reader
+         selects something, and a reader who never wants it should be able to
+         make the offer stop appearing. Hidden where the browser cannot speak. -->
+    <button type="button" class="act" id="speakBtn" aria-pressed="true" title="Offer to read selected article text aloud"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M2.5 6h2.5l3.5-3v10l-3.5-3H2.5z"/><path class="wave" d="M11 5.8a3 3 0 0 1 0 4.4"/><path class="wave" d="M12.9 3.9a5.8 5.8 0 0 1 0 8.2"/></svg>Read aloud</button>
+    <!-- Which sections unfold themselves once the answers start arriving
+         (D142). One question - what opens? - so one control. The count is of
+         dictionaries that HAVE a result, taken from the top of the list the
+         reader arranged below, so the same ones open in the same places every
+         time; 1 is the default (D144). "1, first to show a result" is the race
+         of D73, and only as a single section: several race winners would open
+         scattered down the list. A native <select> because the answer is one of
+         a closed set: nothing to check, the system picker on a phone, and it
+         does not look like the text-size −/+ (an amount, not a choice).
+         Up to 5 because that is about what a reader can compare at once, then
+         All, with no limit: the reader may trade speed for it. A larger number
+         set by hand in state.json is shown as its own choice. Wording in
+         ASD-STE100. -->
+    <label class="seg">
+      <span>Open</span>
+      <select id="openSel" title="These dictionaries open automatically, in the sequence of your list. Many open dictionaries can make the page slow.">
+        <option value="fast">1, first to show a result</option>
+        <option value="1">1</option>
+        <option value="2">2</option>
+        <option value="3">3</option>
+        <option value="4">4</option>
+        <option value="5">5</option>
+        <option value="all">All</option>
+      </select>
+    </label>
+    <!-- How the dictionary PICKER lists the library. A pair for the same reason
+         as the one above: both halves are orders, and neither is an "off".
+         It moves the picker and nothing else — this list below stays in the
+         user's own order because this is where that order is made, by dragging,
+         and a list that re-sorted itself under the drag could not express one.
+         Alphabetical is first and pressed: it is what the picker has always
+         done, so nothing moves for anyone who never touches this. -->
+    <span class="seg" role="group" aria-label="How the dictionary list is ordered">
+      <span>Sort dictionaries</span>
+      <button type="button" class="act" id="sortAZ" aria-pressed="true" title="List the dictionaries A→Z in the picker, whatever order you arranged them in here">Alphabetical</button>
+      <button type="button" class="act" id="sortOwn" aria-pressed="false" title="List the dictionaries in the picker the way you arranged them below">My order</button>
+    </span>
+    <!-- Which sections the picker offers above the names (D149). One switch per
+         section rather than one for all: a native <select> cannot fold a
+         section, so every open pays the full length, and what is worth that
+         length differs by reader - a one-language library has no use for
+         Publisher, a learner lives in Language pair. Independent toggles, so
+         not joined into one control like the pairs above. The buttons are
+         made from the sections the library actually yields; with none, the
+         row is hidden rather than offering switches that change nothing. -->
+    <span class="seg multi" id="groupSeg" role="group" aria-label="Sections the dictionary picker offers" hidden>
+      <span>Group by</span><span class="chips"></span>
+    </span>
+  </div>
   <!-- Monochrome inline SVG, never emoji, for the reason already stated on the
        cog above: a colour blob on one platform and flat on another, off its own
        baseline, and unable to inherit currentColor — so it cannot follow the
@@ -2205,24 +2220,26 @@ function toggleDict(id){
    It only ever changes which dictionaries "All dictionaries" searches; it
    never touches a dictionary or its files. */
 function setAllEnabled(on){
-  disabled.clear();
-  if(!on)for(const d of dicts)disabled.add(d.id);
+  for(const d of scopeDicts())on?disabled.delete(d.id):disabled.add(d.id);
   savePrefs();renderPanel();
 }
 function syncPanelHeader(){
-  const total=dicts.length,on=dicts.filter(d=>!disabled.has(d.id)).length;
+  const scope=scopeDicts(),filtered=scope!==dicts,
+    total=scope.length,on=scope.filter(d=>!disabled.has(d.id)).length;
   const box=$("enAll");
   box.checked=total>0&&on===total;
   box.indeterminate=on>0&&on<total;
   box.disabled=total===0;
-  const label=on===total?"All dictionaries are searched":
-    on===0?"No dictionaries are searched":`${on} of ${total} dictionaries are searched`;
+  const shown=filtered?" shown":"",
+    label=on===total?`All dictionaries${shown} are searched`:
+    on===0?`No dictionaries${shown} are searched`:`${on} of ${total} dictionaries${shown} are searched`;
   // an empty list before the stream finishes is "not here yet", not "none" —
   // the panel must not contradict the boot screen (D30)
   $("enAllLabel").textContent=!total?
-      (phase==="failed"?"Could not load":dictsSettled?"No dictionaries":"Still loading…"):
+      (filtered?"None shown":phase==="failed"?"Could not load":dictsSettled?"No dictionaries":"Still loading…"):
     on===total?"All enabled":on===0?"None enabled":`${on} of ${total} enabled`;
   box.title=label;
+  box.setAttribute("aria-label",`Enable all dictionaries${shown}`);
   renderReindex();
 }
 /* The Rebuild line (server/reindex.go): one line, shown only while some
@@ -2444,7 +2461,6 @@ function rmTrigger(){
   return `<span class="rm" title="Delete this dictionary and its files — permanently, with no undo">🗑 Remove…</span>`;
 }
 function renderPanel(){
-  syncPanelHeader();
   const el=$("panelList");
   /* Every card is replaced, so the scroll offset has to be carried over by
      hand. Measured on a phone: an ingest that ran for nine minutes ends in a
@@ -2457,6 +2473,7 @@ function renderPanel(){
   for(const d of ord){
     const off=disabled.has(d.id);
     const div=document.createElement("div");div.className="pd"+(off?" off":"");div.dataset.id=d.id;
+    div.dataset.find=findKey(d);
     /* Only what varies AND can be changed. exact and prefix are true for every
        dictionary and cost nothing, so showing them was decoration; contains,
        full-text and media each cost real disk, so each is a switch.
@@ -2544,6 +2561,7 @@ function renderPanel(){
       <details class="about"><summary>About this dictionary</summary>${traits(d)}<div class="aboutbody">…</div></details>`;
     el.appendChild(div);
   }
+  findDicts(); // also syncs the master switch, which follows the filter
   if(scroller)scroller.scrollTop=top;
   // A change to a dictionary's indexes is the server's job, not this page's
   // (jobs.go): one started before a reload or by another tab is in its row,
@@ -2578,6 +2596,43 @@ $("panelList").addEventListener("drop",e=>{
   let to=ids.indexOf(pd.dataset.id);if(after)to++;
   ids.splice(to,0,dragId);prefOrder=ids;savePrefs();clearDrop();dragId=null;renderPanel();
 });
+/* Finding a dictionary in the panel. Every word typed must occur, case and
+   accents ignored, in the title or in one of the dictionary's groups, and the
+   list keeps its own order. Cards are hidden, never rebuilt: a keystroke is
+   one pass over the rows, and a card's open details and running progress
+   survive it. The master switch acts on the cards shown, so it is
+   synced on every pass. */
+function findFold(s){return s.normalize("NFD").replace(/\p{M}/gu,"").toLowerCase()}
+function findKey(d){return findFold([dictLabel(d),...(d.groups||[]).map(g=>g.vl)].join("\n"))}
+function findWords(){return findFold($("panelFind").value).split(/\s+/).filter(Boolean)}
+// `dicts` itself when nothing is typed, so callers can test for a filter by identity
+function scopeDicts(){
+  const words=findWords();if(!words.length)return dicts;
+  return dicts.filter(d=>{const k=findKey(d);return words.every(w=>k.includes(w))});
+}
+function findDicts(){
+  const el=$("panelList"),words=findWords();
+  let shown=0;
+  for(const pd of el.querySelectorAll(".pd")){
+    const hit=words.every(w=>pd.dataset.find.includes(w));
+    pd.hidden=!hit;if(hit)shown++;
+  }
+  el.classList.toggle("filtered",words.length>0);
+  let none=el.querySelector(".nofind");
+  if(words.length&&!shown){
+    if(!none)el.appendChild(none=Object.assign(document.createElement("p"),{className:"nofind"}));
+    none.textContent="No dictionary matches";
+  }else if(none)none.remove();
+  syncPanelHeader();
+}
+$("panelFind").addEventListener("input",findDicts);
+$("panelFind").addEventListener("keydown",e=>{
+  // Esc empties the field first and closes the panel only from an empty one
+  if(e.key==="Escape"&&e.target.value){e.preventDefault();e.stopPropagation();e.target.value="";findDicts()}
+  // nothing to submit: Enter puts the phone keyboard away so the list shows
+  else if(e.key==="Enter"){e.preventDefault();e.target.blur()}
+});
+
 /* The panel is a full-height overlay OVER the results, and every switch in it
    — enable/disable, the master switch, drag-reorder — changes what an "All
    dictionaries" search answers with and in what order. Re-running per click
@@ -2598,10 +2653,15 @@ function showPanel(){panelSnap=panelState();
   // before the lock: once the root stops scrolling the bar is gone to measure
   document.documentElement.style.setProperty("--wd-sbw",
     Math.max(0,innerWidth-document.documentElement.clientWidth)+"px");
-  $("panel").classList.add("show");loadFolders()}
+  $("panel").classList.add("show");loadFolders();
+  // A touch keyboard would cover half the list it is meant to narrow, so on
+  // a touch screen the field waits for a tap.
+  if(!TAPS)$("panelFind").focus()}
 function hidePanel(){
   if(!$("panel").classList.contains("show"))return;
   $("panel").classList.remove("show");
+  // every opening starts from the whole list
+  if($("panelFind").value){$("panelFind").value="";findDicts()}
   const was=panelSnap;panelSnap=null;
   /* Only an "All dictionaries" answer is built from the enabled set. A view
      scoped to one dictionary — by the selector, or one-shot by an entry:// link
