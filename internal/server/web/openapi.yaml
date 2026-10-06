@@ -221,6 +221,12 @@ paths:
         `begin` carries the total immediately, from registry ids alone, so a
         client can show "0 of 105" before any dictionary is opened. Rows follow
         in completion order.
+
+
+        `end` carries `etag` when the answer may be kept. Send it back as
+        `If-None-Match` and an unchanged list is a `304` with no body, decided
+        without opening any dictionary. There is no `ETag` header: whether an
+        answer may be kept is known only after its last row.
       x-codeSamples:
         - lang: Shell
           label: curl
@@ -229,6 +235,16 @@ paths:
 
             # just the ids, which is what /api/search wants
             curl -sN 'http://127.0.0.1:6888/api/dicts' | jq -r 'select(.t=="dict") | .dict.id'
+
+            # has anything changed since the answer that ended with this etag?
+            curl -s -o /dev/null -w '%{http_code}\n' -H 'If-None-Match: "ac4fd9fecabd8ec4cf544212"' \
+              'http://127.0.0.1:6888/api/dicts'
+      parameters:
+        - name: If-None-Match
+          in: header
+          required: false
+          description: The `etag` of an earlier answer's `end` line.
+          schema: { type: string }
       responses:
         '200':
           description: The NDJSON stream. One object per line.
@@ -238,12 +254,14 @@ paths:
                 oneOf:
                   - $ref: '#/components/schemas/DictsBegin'
                   - $ref: '#/components/schemas/DictsRow'
-                  - $ref: '#/components/schemas/StreamEnd'
+                  - $ref: '#/components/schemas/DictsEnd'
                 discriminator: { propertyName: t }
               example: |
                 {"t":"begin","total":2}
                 {"t":"dict","dict":{"id":"oxford","name":"Oxford Advanced Learner's","format":"mdx","path":"/Users/me/Dicts/oald.mdx","entries":184000,"caps":{"Exact":true,"Prefix":true,"Contains":false,"FTS":false}}}
-                {"t":"end"}
+                {"t":"end","etag":"\"ac4fd9fecabd8ec4cf544212\""}
+        '304':
+          description: Nothing in the list has changed since the answer whose `etag` was sent.
         '500':
           $ref: '#/components/responses/ServerError'
     options:
@@ -357,7 +375,7 @@ paths:
                 oneOf:
                   - $ref: '#/components/schemas/DictsBegin'
                   - $ref: '#/components/schemas/DictsRow'
-                  - $ref: '#/components/schemas/StreamEnd'
+                  - $ref: '#/components/schemas/DictsEnd'
                 discriminator: { propertyName: t }
         '500':
           $ref: '#/components/responses/ServerError'
@@ -2173,6 +2191,20 @@ components:
         i:
           type: integer
           description: Always 0 here. The search stream carries the field on every line.
+      required: [t]
+
+    DictsEnd:
+      type: object
+      description: The last line of the /api/dicts stream.
+      properties:
+        t: { const: end }
+        etag:
+          type: string
+          description: >
+            The validator of this whole answer, for If-None-Match. Absent when
+            the answer must not be kept: a row carries an error or a running job,
+            or what a row was derived from changed while it was derived (a
+            dictionary preparing itself on its first open).
       required: [t]
 
     SearchBegin:

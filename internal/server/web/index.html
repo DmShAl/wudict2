@@ -1797,6 +1797,13 @@ function dictIDByName(name){
      failed  — the stream broke: interactive anyway, with a retry
    Only partial/ready may say anything about what the user has disabled. */
 let phase="boot",dictTotal=0,staleSearch=false;
+/* Whether the last search's dictionaries came FROM the list ("all" or a
+   group) rather than naming one: only such a search can be made incomplete by
+   a list still loading, or wrong by a list that has changed since. */
+let lastFromList=false;
+/* The widening a search deferred for the list (doSearch), handed to its re-run
+   by loadDicts and to nothing else: a query typed in between drops it. */
+let staleWidened=null;
 function setPhase(p){
   if(phase===p)return;
   const wasBoot=phase==="boot";
@@ -1946,6 +1953,7 @@ function refreshDictUI(now){
   // last row is in — and then only the remembered one still names the choice.
   const sel=$("dict"),saved=localStorage.getItem("wudict_dict");
   const prev=sel.value&&sel.value!=="all"?sel.value:(saved||sel.value||"all");
+  const pend=sel.selectedOptions[0]?.dataset.pending?sel.selectedOptions[0]:null; // selectDict
   sel.innerHTML='<option value="all">All dictionaries</option>';
   /* <optgroup> and nothing more: the heading is the facet and is NOT
      selectable, which is exactly the required behaviour for a section label,
@@ -1986,6 +1994,9 @@ function refreshDictUI(now){
     host.appendChild(o);
   }
   if([...sel.options].some(o=>o.value===prev))sel.value=prev;
+  // a link's dictionary whose row is still on its way keeps its placeholder;
+  // once the list is complete, a row that never came is not there to choose
+  else if(pend&&!dictsSettled){sel.appendChild(pend);sel.value=prev}
   syncChips(); // the option list just changed under the chip
   renderPanel();
 }
@@ -2001,52 +2012,101 @@ function groupsTrouble(n){
   a.lastChild.textContent=n?`Edit groups… (${n})`:"Edit groups…";
 }
 
+/* The last complete /api/dicts answer and its validator (the `end` frame's
+   etag), so a load draws the list at once and only asks whether it changed.
+   Per browser and disposable: the server owns the list, a 304 vouches for
+   this copy, and anything unreadable here is simply no copy. An answer the
+   server offered no validator for (a row with an error or a running job) is
+   not kept. */
+const DICTS_KEY="wudict_dicts";
+function readDictCache(){
+  try{
+    const c=JSON.parse(localStorage.getItem(DICTS_KEY));
+    return c&&c.v===1&&c.etag&&Array.isArray(c.rows)&&c.rows.length?c:null;
+  }catch(e){return null}
+}
+function writeDictCache(etag,rows,gp){
+  try{
+    if(etag)localStorage.setItem(DICTS_KEY,JSON.stringify({v:1,etag,gp,rows}));
+    else localStorage.removeItem(DICTS_KEY);
+  }catch(e){
+    // a full store must not leave the previous copy to be vouched for
+    try{localStorage.removeItem(DICTS_KEY)}catch(_){}
+  }
+}
+/* What a search over the list depends on: which dictionaries, which modes
+   each can answer, and which groups each is in. A revalidation that changes
+   only sizes or paths leaves an answer on screen as true as it was. */
+const listShape=()=>dicts.map(d=>d.id+":"+JSON.stringify(d.caps)+":"+JSON.stringify(d.groups||[])).sort().join();
+
 /* Consumes the /api/dicts NDJSON stream, so search unblocks on the FIRST
    dictionary rather than the last one. Never throws: a failure here must
-   still leave the user with a usable page. */
-async function loadDicts(rescan){
+   still leave the user with a usable page.
+
+   opts.etag revalidates a list already on screen (bootFromCache): nothing
+   changes until the whole answer is in, then everything at once, and a 304
+   changes nothing at all. opts.silent loads under an answer the page gave
+   before the list (bootEarly), where a loading line would describe nothing
+   the reader is waiting for.
+
+   Resolves true when the list on screen is the server's (a 304, or a whole
+   answer), false when it could not be had. */
+async function loadDicts(rescan,opts={}){
   // A rescan happens in an app that already works — it must not black the UI
   // out. Only the first load (or a retry after a failure) blocks.
   const blocking=phase==="boot"||phase==="failed";
+  const quiet=!!opts.etag;
   // A first load has no groups to show until the last row has resolved. A
   // RESCAN keeps the ones it has: the list on screen is already the previous
   // one being replaced row by row, and blanking the groups under it would
   // drop a group the user currently has selected.
   if(blocking)dictsSettled=false;
   if(blocking){setPhase("boot");startBootScreen();dictTotal=0;setStatus(esc(readyCount()),"load")}
-  else setStatus('<span class="spin"></span>Loading dictionaries…',"load");
+  else if(!quiet&&!opts.silent)setStatus('<span class="spin"></span>Loading dictionaries…',"load");
   const rows=[];
-  let published=false,sawBegin=false;
+  let published=false,sawBegin=false,tag="",gp=0;
   // "begin" costs the server no opens at all, so its absence means the server
-  // is not answering — never leave the form inert waiting on a hang.
-  const watchdog=blocking?setTimeout(()=>{if(!sawBegin)bootFailed("the server is not responding")},20000):null;
+  // is not answering — never leave the form inert waiting on a hang. Under an
+  // early answer (silent) the answer stays: only the list is reported missing.
+  const failed=msg=>{
+    if(blocking)bootFailed(msg);
+    else if(opts.silent){setPhase("failed");syncPanelHeader();setStatus("⚠ Could not load your dictionaries: "+esc(msg),"dicts")}
+    else setStatus("⚠ "+esc(msg));
+  };
+  const watchdog=blocking||opts.silent?setTimeout(()=>{if(!sawBegin)failed("the server is not responding")},20000):null;
   try{
-    await fetchStream(rescan?"/api/rescan":"/api/dicts",msg=>{
+    const fresh=await fetchStream(rescan?"/api/rescan":"/api/dicts",msg=>{
       if(msg.t==="begin"){
-        sawBegin=true;dictTotal=msg.total||0;
-        groupsTrouble(msg.groupsProblems||0);
+        sawBegin=true;gp=msg.groupsProblems||0;
+        groupsTrouble(gp);
+        if(quiet)return;
+        dictTotal=msg.total||0;
         if(blocking)setStatus(esc(readyCount()),"load");
       }else if(msg.t==="dict"&&msg.dict){
         rows.push(msg.dict);
+        if(quiet)return;
         if(!published){
           // swap the old list out only now: a rescan keeps showing the
           // previous dictionaries until replacements start arriving
           published=true;dicts=rows;
-          if(phase==="failed")$("out").innerHTML=""; // a slow stream beat the watchdog
+          // a slow stream beat the watchdog: take its notice down, not an answer
+          if(phase==="failed"&&$("retryBtn"))$("out").innerHTML="";
           setPhase("partial");
         }
         if(blocking)setStatus(esc(readyCount()),"load");
         refreshDictUI();
-      }
-    });
+      }else if(msg.t==="end")tag=msg.etag||"";
+    },null,opts.etag);
+    if(!fresh)return true; // 304: the list on screen is the list
   }catch(err){
-    if(blocking)bootFailed(err.message);
-    else setStatus("⚠ "+esc(err.message));
-    return;
+    failed(err.message);
+    return false;
   }finally{
     clearTimeout(watchdog);
   }
+  const shape=quiet&&listShape();
   dicts=rows;dictTotal=rows.length;
+  writeDictCache(tag,rows,gp);
   // normalize the saved preference order to the current dictionary set
   // (appends newly-added dicts A→Z, drops removed ones). ONLY on the complete
   // set — doing it mid-stream would drop the ids that had not arrived yet.
@@ -2054,9 +2114,12 @@ async function loadDicts(rescan){
   dictsSettled=true; // every row is in; the groups can be counted
   refreshDictUI(true);
   setPhase("ready");
-  clearStatus("load");
+  clearStatus("load");clearStatus("dicts");
   // a search run against a half-loaded list is now answerable in full
-  if(staleSearch&&lastQuery){staleSearch=false;doSearch()}
+  if(staleSearch&&lastQuery){staleSearch=false;widenedFrom=staleWidened;doSearch()}
+  // and one run against the kept list, if the list it searched has changed
+  else if(quiet&&lastFromList&&lastQuery&&listShape()!==shape)doSearch();
+  return true;
 }
 /* reorder helpers operate on the preference-ordered id list */
 function moveDict(id,where){
@@ -2093,7 +2156,7 @@ function syncPanelHeader(){
   // an empty list before the stream finishes is "not here yet", not "none" —
   // the panel must not contradict the boot screen (D30)
   $("enAllLabel").textContent=!total?
-      (phase==="boot"?"Still loading…":phase==="failed"?"Could not load":"No dictionaries"):
+      (phase==="failed"?"Could not load":dictsSettled?"No dictionaries":"Still loading…"):
     on===total?"All enabled":on===0?"None enabled":`${on} of ${total} enabled`;
   box.title=label;
   renderReindex();
@@ -3372,10 +3435,17 @@ function setBusy(on){
 
 /* read a newline-delimited JSON response, invoking onMsg per record as it
    arrives — this is what lets each dictionary render the instant it is
-   ready instead of waiting for the whole fan-out (progressive results). */
-async function fetchStream(url,onMsg,signal){
-  const resp=await fetch(url,signal?{signal}:undefined);
-  if(!resp.ok){let e;try{e=(await resp.json()).error}catch(_){}throw new Error(e||resp.statusText)}
+   ready instead of waiting for the whole fan-out (progressive results).
+   `etag` makes it a revalidation: false back means 304, the answer the caller
+   already holds still stands. A conditional header set by the page turns the
+   browser's own cache off for the request (Fetch), so the 304 reaches us. */
+async function fetchStream(url,onMsg,signal,etag){
+  const init={};
+  if(signal)init.signal=signal;
+  if(etag){init.headers={"If-None-Match":etag};init.cache="no-store"}
+  const resp=await fetch(url,init);
+  if(etag&&resp.status===304)return false;
+  if(!resp.ok){let e;try{e=(await resp.json()).error}catch(_){}throw Object.assign(new Error(e||resp.statusText),{status:resp.status})}
   const reader=resp.body.getReader(),dec=new TextDecoder();let buf="";
   for(;;){
     const{value,done}=await reader.read();
@@ -3388,10 +3458,14 @@ async function fetchStream(url,onMsg,signal){
     }
   }
   buf=buf.trim();if(buf)onMsg(JSON.parse(buf));
+  return true;
 }
+/* The names the search answers carried, for a dictionary the list has not
+   delivered yet: a link is answered before the list is in (bootEarly). */
+const hitNames=new Map();
 function dictName(id){
   const d=dicts.find(x=>x.id===id);
-  return d?dictLabel(d):id;
+  return d?dictLabel(d):hitNames.get(id)||id;
 }
 /* Says what was searched and offers the way out, placed under the results
    rather than in the status line: the scope is a property of what is on
@@ -3680,6 +3754,7 @@ async function doSearch(ev){
   const scope=scopeOnce;scopeOnce=null;lastScope=scope;
   const commit=commitOnce;commitOnce=false; // this query was asked for, not typed
   const widened=widenedFrom;widenedFrom=null; // set by the fallback below
+  staleWidened=null; // any search but the deferred re-run (loadDicts) drops it
   // ||"all" is the floor under a selection that no longer exists: assigning
   // an id the <select> does not have leaves .value empty, and a saved id or a
   // ?dict= from an older library can do exactly that.
@@ -3700,6 +3775,7 @@ async function doSearch(ev){
   // "all": the server has no notion of a group, and giving it one would mean
   // versioning a taxonomy across two processes to save a join over 105 rows.
   const ids=dictSel==="all"?enabledOrderedIds():dictSel.startsWith("g:")?groupIds(dictSel):null;
+  lastFromList=!!ids;
   if(ids){
     if(!ids.length){
       // "You disabled them all" is only knowable once the list is complete:
@@ -3714,7 +3790,8 @@ async function doSearch(ev){
         ?(lbl?`⚠ Nothing enabled under “${esc(lbl)}” — enable some in the ☰ panel`
              :"⚠ All dictionaries are disabled — enable some in the ☰ panel")
         :'<span class="spin"></span>'+esc(readyCount()));
-      if(!settled)staleSearch=true;
+      // the re-run is still the widening this search was, and says so
+      if(!settled){staleSearch=true;staleWidened=widened}
       return;
     }
     dictParam=ids.join(",");
@@ -3792,9 +3869,13 @@ async function doSearch(ev){
         // and under expand-all there is no latch to hold back.
         if(orderFirst&&!expandAll&&boxes.length>1)
           barrier=setTimeout(()=>{barrier=null;if(seq===searchSeq)settle()},OPEN_BARRIER_MS);
-        setStatus("");
+        // a list that could not be loaded under an early answer (loadDicts)
+        // is still not loaded: an answer arriving does not take that back
+        if(statusOwner!=="dicts")setStatus("");
       }else if(msg.t==="hit"){
         const box=boxes[msg.i];if(!box)return;
+        if(msg.name)hitNames.set(msg.dict,msg.name);
+        namePending(msg);
         const res=renderSlot(box,msg,mode,q,perDict,boxes.length>1);
         if(res.shown)swap(); // including the grouped line: it is this generation's first paint
         if(res.noIndex){noIdx=noIndexRow(noIdx,out,res.noIndex);noIdxCount++}
@@ -3878,13 +3959,27 @@ async function doSearch(ev){
         else if(widened)out.appendChild(widenNote(widened,q));
         // Searched a list that is still filling up: say so rather than let an
         // incomplete answer look complete, and re-run when the rest lands.
-        if(phase==="partial"){
+        // Not a search of one named dictionary, which is complete already -
+        // and whose re-run would carry no scope and so search everything.
+        if(phase==="partial"&&ids){
           staleSearch=true;
           setStatus(`searched ${dicts.length} of ${dictTotal||dicts.length} dictionaries — still loading…`);
         }
       }
     },signal);
-  }catch(err){if(err.name==="AbortError")return;if(seq===searchSeq)setStatus("⚠ "+esc(err.message))}
+  }catch(err){
+    if(err.name==="AbortError")return;
+    if(seq!==searchSeq)return;
+    // A link's dictionary that the server does not know (removed, moved, or
+    // an id from another library) is what an unknown option always was: the
+    // floor under it is "all". Only a placeholder (selectDict) can get here -
+    // a real option names a dictionary the list has.
+    const o=$("dict").selectedOptions[0];
+    if(err.status===404&&o&&o.dataset.pending&&o.value===dictParam){
+      o.remove();$("dict").value="all";syncChips();doSearch();return;
+    }
+    setStatus("⚠ "+esc(err.message));
+  }
   finally{
     // Only the newest search may stop the glyph. An aborted one has already
     // been superseded by a search that is still running, and clearing here
@@ -4619,11 +4714,40 @@ let scopeOnce=null,anchorOnce=null,lastScope=null,widenedFrom=null;
    one tap away rather than one yank away. Same one-shot idiom as navRecord:
    set by the act, consumed by the next doSearch. */
 let commitOnce=false;
+/* A link can name a dictionary the <select> has no option for yet: the page
+   answers it before the list is in (bootEarly), or from a kept list that
+   predates it (bootFromCache). A <select> cannot hold a value it has no
+   option for - assigning one leaves "" and the search falls back to "all" -
+   so the id gets a placeholder option, named by the first answer from that
+   dictionary (namePending). refreshDictUI rebuilds the options and keeps the
+   selection when the real one arrives. A group cannot be named this way: a
+   group is only known from the whole list. */
+function selectDict(v){
+  const sel=$("dict");
+  if(v!=="all"&&!v.startsWith("g:")&&![...sel.options].some(o=>o.value===v)){
+    const o=document.createElement("option");
+    o.value=v;o.textContent="…";o.dataset.pending="1";
+    sel.appendChild(o);
+  }
+  sel.value=v;
+}
+function namePending(h){
+  const o=$("dict").selectedOptions[0];
+  if(o&&o.dataset.pending&&o.value===h.dict&&h.name){o.textContent=h.name;syncChips()}
+}
+/* One dictionary named by the link, answerable before the list is in: `from`
+   (a link followed inside a dictionary, or a headword picked in Browse), else
+   a `dict` that is one id. */
+function linkNamesOne(){
+  const p=new URLSearchParams(location.search);
+  const one=v=>!!v&&v!=="all"&&!v.startsWith("g:")&&!v.includes(",");
+  return !!p.get("q")&&(p.get("from")?one(p.get("from")):one(p.get("dict")));
+}
 function applyURL(){
   const p=new URLSearchParams(location.search);
   if(p.get("theme")){localStorage.setItem("wudict_theme",p.get("theme"));applyTheme(p.get("theme"))}
   if(p.get("mode"))$("mode").value=p.get("mode");
-  if(p.get("dict"))$("dict").value=p.get("dict");
+  if(p.get("dict"))selectDict(p.get("dict"));
   syncChips();
   if(p.get("q")){$("q").value=p.get("q");scopeOnce=p.get("from")||null;commitOnce=true;doSearch()}
 }
@@ -4634,7 +4758,11 @@ doSearch=function(ev){
   const r=_doSearch(ev);
   const q=$("q").value.trim();
   if(q&&record!=="none"){
-    const params={q,mode:$("mode").value,dict:$("dict").value};
+    const params={q,mode:$("mode").value};
+    // The picker, once it is known. Before the list (bootEarly) it holds only
+    // "all", which is not the reader's choice but the absence of it - written
+    // here, Back would later put "all" over the choice they saved.
+    if(dictsSettled||$("dict").value!=="all")params.dict=$("dict").value;
     // `from` is the one-shot cross-reference scope; `dict` stays the user's
     // own selector, so restoring a link-followed view never rewrites it
     if(lastScope)params.from=lastScope;
@@ -4651,7 +4779,7 @@ doSearch=function(ev){
 window.addEventListener("popstate",()=>{
   const p=new URLSearchParams(location.search);
   if(p.get("mode"))$("mode").value=p.get("mode");
-  if(p.get("dict"))$("dict").value=p.get("dict");
+  if(p.get("dict"))selectDict(p.get("dict"));
   syncChips();
   const q=p.get("q")||"";
   $("q").value=q;
@@ -5519,7 +5647,51 @@ function welcome(){
   }
   searchFor("wudict welcome",{scope:guide.id,record:"replace"});
 }
-Promise.all([loadPrefs(),loadConfig(),loadUserCSS()]).then(loadDicts).then(()=>{applyURL();welcome()});
+/* Three ways to start, chosen by what is at hand when the settings are in.
+
+   A kept list (bootFromCache): draw it, answer the link, and only then ask the
+   server whether the list has changed - a 304 in the usual case, which costs
+   the server a stat per dictionary and no opens.
+
+   No kept list, but a link that names one dictionary (bootEarly): /api/search
+   resolves a dictionary by id and needs no list, so the answer goes out now
+   and the list loads under it. A word picked in Browse is exactly this.
+
+   Neither: the list first, as it must be - "all" and a group are both defined
+   by it.
+
+   The query reaches the field before the boot phase ends, so setPhase never
+   sees an empty field and focuses it (a host shell reads that focus as "raise
+   the keyboard"). welcome() waits for the list the server confirms: "your
+   library is empty" must not be said from a copy.
+
+   A page load never rescans the folders (/api/rescan): files added on disk
+   arrive by "Rescan folders" or the next start of the app, which is when the
+   server discovers them. */
+function urlQuery(){$("q").value=new URLSearchParams(location.search).get("q")||""}
+function bootFromCache(c){
+  dicts=c.rows;dictTotal=c.rows.length;dictsSettled=true;
+  groupsTrouble(c.gp||0);
+  refreshDictUI(true);
+  // ready BEFORE the search, which judges "nothing enabled" by the phase;
+  // the query is in the field first, so the phase change does not focus it
+  urlQuery();
+  setPhase("ready");
+  applyURL();
+  return loadDicts(false,{etag:c.etag});
+}
+function bootEarly(){
+  urlQuery();
+  setPhase("partial");
+  applyURL();
+  return loadDicts(false,{silent:true});
+}
+Promise.all([loadPrefs(),loadConfig(),loadUserCSS()]).then(()=>{
+  const c=readDictCache();
+  if(c)return bootFromCache(c).then(ok=>{if(ok)welcome()});
+  if(linkNamesOne())return bootEarly();
+  return loadDicts().then(()=>{applyURL();welcome()});
+});
 </script>
 </body>
 </html>

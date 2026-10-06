@@ -390,6 +390,17 @@ type entry struct {
 	// abbreviation upgrade sweep, so a rescan does not re-queue it.
 	abbrevTried atomic.Bool
 
+	// gen moves whenever what this entry's /api/dicts row was derived from
+	// changes under the app's own hand: a prepare, rebuild or pack
+	// (entry.reconcile), and a backend or prepared folder a rescan finds
+	// changed (revalidate) - removing prepared data and every Rescan caller
+	// land there. Keyed into the row cache (dictrows.go), it catches what a
+	// coarse filesystem clock, or a row derived from a still-open backend,
+	// would hide from the stat keys. It starts at 0 in every process, so a
+	// validator kept across a restart can outlive a change only the stats
+	// missed; that is accepted (304s survive restarts), and Rescan clears it.
+	gen atomic.Uint64
+
 	// rebuilding bars opens for the length of an ingest that will rename over
 	// the prepared database (Windows only; set with the backend handback in
 	// registry_windows.go). Set false again by the defers in setFeatures,
@@ -1667,6 +1678,9 @@ func (e *entry) revalidate() {
 	if !changed {
 		return
 	}
+	// what this entry's /api/dicts row was derived from - a backend, or a
+	// prepared folder - is not what is there now (dictrows.go)
+	e.gen.Add(1)
 	if open {
 		if _, dropped := e.drop(true); !dropped {
 			// An ingest holds this entry. It ends in reopen(), which resolves
@@ -1790,6 +1804,14 @@ func (e *entry) reconcile(name string, t store.Target, progress store.Progress) 
 	var rerr error
 	if out.Changed() || (err == nil && stale) {
 		rerr = e.reopen()
+	}
+	// What this entry's /api/dicts row is derived from moved - or may have,
+	// on a failure - and is served afresh: after the reopen, so the row
+	// describes the result (dictrows.go). A reconcile that found everything
+	// as wanted, as the startup abbreviation sweep usually does, leaves the
+	// kept row and the client's validator standing.
+	if out.Changed() || stale || err != nil {
+		e.gen.Add(1)
 	}
 	if err != nil {
 		return out, fmt.Errorf("preparing %q: %w", name, err)
