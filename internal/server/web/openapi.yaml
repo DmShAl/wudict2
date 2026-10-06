@@ -1264,7 +1264,7 @@ paths:
       tags: [internal]
       operationId: savePrefs
       x-internal: true
-      summary: Replace the order and the enabled set
+      summary: Replace the order and the enabled set, change UI settings
       description: >
         Array order is the user's order. Entries record the path as well as the
         id, because ids are derived from the path: moving a dictionary folder
@@ -1280,12 +1280,17 @@ paths:
                 dicts:
                   type: array
                   items: { $ref: '#/components/schemas/DictPref' }
+                  description: >
+                    The whole list, in the user's order. Omit it (or send null)
+                    to keep the stored list untouched, as when only a UI
+                    setting changed.
                 ui:
                   allOf: [{ $ref: '#/components/schemas/UIPrefs' }]
                   description: >
-                    Omit to leave the stored UI record untouched. Absent and
-                    empty are different: a client that only reorders
-                    dictionaries must not clear the reader's text size.
+                    The UI fields to change. Each field you send replaces the
+                    stored one; each field you omit keeps its stored value, so
+                    send `false`, `0` or `[]` to clear one. Omit `ui` (or send
+                    null or `{}`) to leave the stored UI record untouched.
 
       x-codeSamples:
         - lang: Shell
@@ -1305,7 +1310,7 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Prefs' }
         '400':
-          description: The body is not valid JSON.
+          description: The body is not valid JSON, or a UI field has the wrong type.
         '500':
           description: The state file could not be written.
 
@@ -2517,6 +2522,21 @@ components:
             the opt-out, so that absent is the default strategy - the reader's
             own order. Remembered state for wudict's own UI - the search
             endpoint never reads it.
+        openN:
+          type: integer
+          minimum: 2
+          description: >
+            How many sections open by themselves: the first openN dictionaries
+            in the user's own order that have a result. Absent is one, the
+            default; values below 2 are stored as absent. No upper limit.
+            Remembered state for wudict's own UI - the search endpoint never
+            reads it.
+        openAll:
+          type: boolean
+          description: >
+            Opens every section that has a result, in the user's own order.
+            `fastFirst`, which opens one section, wins over it and over
+            `openN`. Remembered state for wudict's own UI.
         speakOff:
           type: boolean
           description: >
@@ -2539,6 +2559,14 @@ components:
             usually its examples - shown rather than hidden. Absent is the
             brief view, Lingvo's own default. Remembered state for wudict's
             own UI - the search endpoint never reads it.
+        mode:
+          type: string
+          enum: [exact, contains, fts]
+          description: >
+            The search mode the reader last picked. Absent is prefix, the
+            default; prefix and unknown values are stored as absent.
+            Remembered state for wudict's own UI - the search endpoint never
+            reads it, and a `mode=` in the page's address wins over it.
 
     Groups:
       type: object

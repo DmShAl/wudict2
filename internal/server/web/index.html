@@ -784,6 +784,10 @@ html:has(#panel.show) .bar{padding-right:var(--wd-sbw,0px)}
 .facts .seg.multi .act[aria-pressed="true"] svg{color:var(--accent)}
 .facts .seg.multi .act[aria-pressed="false"] .tick{display:none}
 .facts .seg[hidden]{display:none}
+/* As wide as the choice it shows, not its longest option: "3" in a box sized
+   for "1, first to show a result" reads as an empty field. Where the browser
+   does not size a select to its content, the longest option sets the width. */
+.facts .seg select{font:inherit;font-size:11.5px;line-height:1.2;padding:.25em .4em;max-width:none;field-sizing:content}
 /* One step fainter than the label, so the glyph reads as a mark on the control
    rather than as a second word. Both idioms below (fill and stroke) resolve
    through currentColor, so this one declaration colours all three — and they
@@ -1063,7 +1067,7 @@ html:has(#panel.show) .bar{padding-right:var(--wd-sbw,0px)}
      as you type. A button would be a magnifier next to a magnifier. -->
 <button type="button" class="btn tools themeBtn" title="Theme" aria-label="Toggle theme">◐</button>
 <button type="button" class="btn" id="wideBtn" title="Toggle wide layout" aria-label="Toggle wide layout">⇔</button>
-<button type="button" class="btn" id="expandBtn" title="Expand all results" aria-label="Expand all results" aria-pressed="false">⊞</button>
+<button type="button" class="btn" id="expandBtn" title="Open all results" aria-label="Open all results" aria-pressed="false">⊞</button>
 <button type="button" class="btn" id="panelBtn" title="Dictionaries" aria-label="Manage dictionaries">☰</button>
 </form>
 </header>
@@ -1112,19 +1116,31 @@ html:has(#panel.show) .bar{padding-right:var(--wd-sbw,0px)}
        selects something, and a reader who never wants it should be able to
        make the offer stop appearing. Hidden where the browser cannot speak. -->
   <button type="button" class="act" id="speakBtn" aria-pressed="true" title="Offer to read selected article text aloud"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M2.5 6h2.5l3.5-3v10l-3.5-3H2.5z"/><path class="wave" d="M11 5.8a3 3 0 0 1 0 4.4"/><path class="wave" d="M12.9 3.9a5.8 5.8 0 0 1 0 8.2"/></svg>Read aloud</button>
-  <!-- Which section unfolds itself once the answers start arriving (D142).
-       A pair rather than one toggle, because neither choice is an "off":
-       both are strategies, and an unpressed pen cannot say which of the two
-       is in force. Named by what the user gets, not by the mechanism behind
-       it (D102) — "My order" is the top of the dictionary list they arranged
-       below, "Fastest" is whichever answer arrives soonest. The default is
-       first and pressed: the list a reader arranged IS their answer to "which
-       of these do I want", and a race winner is not that answer (D144). -->
-  <span class="seg" role="group" aria-label="Which dictionary opens first">
-    <span>Open first</span>
-    <button type="button" class="act" id="openOrder" aria-pressed="true" title="Expand the first dictionary in your list that has a result — waits briefly for the ones above it">My order</button>
-    <button type="button" class="act" id="openFast" aria-pressed="false" title="Expand whichever dictionary answers first — the quickest definition on screen">Fastest</button>
-  </span>
+  <!-- Which sections unfold themselves once the answers start arriving
+       (D142). One question - what opens? - so one control. The count is of
+       dictionaries that HAVE a result, taken from the top of the list the
+       reader arranged below, so the same ones open in the same places every
+       time; 1 is the default (D144). "1, first to show a result" is the race
+       of D73, and only as a single section: several race winners would open
+       scattered down the list. A native <select> because the answer is one of
+       a closed set: nothing to check, the system picker on a phone, and it
+       does not look like the text-size −/+ (an amount, not a choice).
+       Up to 5 because that is about what a reader can compare at once, then
+       All, with no limit: the reader may trade speed for it. A larger number
+       set by hand in state.json is shown as its own choice. Wording in
+       ASD-STE100. -->
+  <label class="seg">
+    <span>Open</span>
+    <select id="openSel" title="These dictionaries open automatically, in the sequence of your list. Many open dictionaries can make the page slow.">
+      <option value="fast">1, first to show a result</option>
+      <option value="1">1</option>
+      <option value="2">2</option>
+      <option value="3">3</option>
+      <option value="4">4</option>
+      <option value="5">5</option>
+      <option value="all">All</option>
+    </select>
+  </label>
   <!-- How the dictionary PICKER lists the library. A pair for the same reason
        as the one above: both halves are orders, and neither is an "off".
        It moves the picker and nothing else — this list below stays in the
@@ -1302,15 +1318,32 @@ function adoptLocalPrefs(){
 }
 let prefsReady=false;
 let fullOn=false; // brief or full view for the next section that opens (fullInit)
+/* The search mode the reader last PICKED, which is what is saved - not what
+   #mode shows. A link, Back/Forward and searchFor set #mode too, and the next
+   save of any other setting would otherwise store their choice as the
+   reader's. Only the select's own change event moves this. */
+let modePref="prefix";
+/* #mode takes only a value it has an <option> for: any other value (a
+   hand-typed ?mode=fuzzy) would leave the select blank and search with an
+   empty mode. Reports whether it took the value. */
+function setMode(v){
+  const ok=[...$("mode").options].some(o=>o.value===v);
+  if(ok)$("mode").value=v;
+  return ok;
+}
 async function loadPrefs(){
   try{
     const r=await fetch("/api/prefs");
     if(!r.ok)throw new Error("HTTP "+r.status);
     const st=await r.json(),rows=st.dicts||[];
-    prefsReady=true;
     // Read before the exists branch below returns: on a first run there is no
     // ui record, but there is also nothing here that can go wrong.
-    if(st.ui){applyFS(st.ui.fontSize,false);applyHL(!st.ui.hlOff,false);applySpeak(!st.ui.speakOff,false);applyOpenOrder(!st.ui.fastFirst,false);applySortOrder(st.ui.sortMine,false);applyGroupsOff(st.ui.groupsOff,false);fullOn=!!st.ui.full}
+    if(st.ui){applyFS(st.ui.fontSize,false);applyHL(!st.ui.hlOff,false);applySpeak(!st.ui.speakOff,false);applyOpen(st.ui.fastFirst?"fast":st.ui.openAll?"all":String(st.ui.openN||1),false);applySortOrder(st.ui.sortMine,false);applyGroupsOff(st.ui.groupsOff,false);fullOn=!!st.ui.full;modePref=st.ui.mode||"prefix";setMode(modePref)}
+    uiBase=uiNow();
+    dictsBase=rows.map(d=>({id:d.id,name:d.name||"",off:!!d.off}));
+    // Last, so that a page whose baselines are not both in hand never saves:
+    // savePrefs diffs against them.
+    prefsReady=true;
     if(!st.exists){adoptLocalPrefs();return} // first run: keep whatever we had
     prefOrder=rows.map(d=>d.id);
     disabled=new Set(rows.filter(d=>d.off).map(d=>d.id));
@@ -1320,9 +1353,26 @@ async function loadPrefs(){
     console.warn("could not load settings:",e);
   }
 }
+/* The ui record as this page holds it, and as it last read or wrote it. A save
+   sends only the keys that differ from uiBase, and the server changes only the
+   keys it is sent (prefs.go, update): another page on the same server - a
+   second tab, or the Android app beside its lookup popup - may have changed a
+   setting since this one loaded, and a full record would carry this page's
+   stale copy of it back over the newer choice. uiBase moves only on a save
+   that succeeded, and only by what was sent, so a failed key goes again with
+   the next save. */
+let uiBase=null;
+/* The same rule for the dictionary list, whole: it is one ordering, so it is
+   sent entire or not at all. Compared over the dictionaries this page can see,
+   because the server keeps the records of the ones it cannot (an unmounted
+   drive) and this page cannot speak for them. */
+let dictsBase=null;
+function uiNow(){
+  return{fontSize:articleFS,hlOff:!hlOn,speakOff:!speakOn,fastFirst:!orderFirst,openN:openN>1?openN:0,openAll,sortMine:sortOwn,groupsOff:[...groupsOff].sort(),full:fullOn,mode:modePref==="prefix"?"":modePref};
+}
 /* Debounced, and silent when nothing actually changed — dragging a card emits
-   a move per hovered row, and startup normalisation re-sends a list that is
-   usually identical to the one we just read. */
+   a move per hovered row, and startup normalisation usually yields the list
+   we just read, which is then not sent at all. */
 let prefsTimer=null,prefsSent=null;
 function savePrefs(now){
   clearTimeout(prefsTimer);
@@ -1331,12 +1381,21 @@ function savePrefs(now){
   // it would destroy the real one.
   if(!prefsReady){setStatus("⚠ settings are not being saved — reload the page");return}
   if(!now){prefsTimer=setTimeout(()=>savePrefs(true),400);return}
-  const body=JSON.stringify({dicts:orderedDicts().map(d=>({id:d.id,name:dictLabel(d),off:disabled.has(d.id)})),
-    ui:{fontSize:articleFS,hlOff:!hlOn,speakOff:!speakOn,fastFirst:!orderFirst,sortMine:sortOwn,groupsOff:[...groupsOff].sort(),full:fullOn}});
+  const ui=uiNow(),patch={};
+  for(const k in ui)if(JSON.stringify(ui[k])!==JSON.stringify(uiBase[k]))patch[k]=ui[k];
+  const rows=orderedDicts().map(d=>({id:d.id,name:dictLabel(d),off:disabled.has(d.id)})),
+    seen=new Set(rows.map(d=>d.id)),req={};
+  if(JSON.stringify(rows)!==JSON.stringify(dictsBase.filter(d=>seen.has(d.id))))req.dicts=rows;
+  if(Object.keys(patch).length)req.ui=patch;
+  if(!req.dicts&&!req.ui)return;
+  const body=JSON.stringify(req);
   if(body===prefsSent)return;
   prefsSent=body;
   fetch("/api/prefs",{method:"PUT",headers:{"Content-Type":"application/json"},body})
-    .then(r=>{if(!r.ok)throw new Error("HTTP "+r.status)})
+    .then(r=>{if(!r.ok)throw new Error("HTTP "+r.status);uiBase={...uiBase,...patch};if(req.dicts)dictsBase=rows;
+      // a body is a diff against the baselines just moved, so the same text
+      // later means a different change: dedupe only what is in flight
+      if(prefsSent===body)prefsSent=null})
     .catch(e=>{prefsSent=null;setStatus("⚠ could not save dictionary settings: "+esc(e.message))});
 }
 /* What a failed API call says: every route answers {"error": "…"} (httpErr),
@@ -1558,20 +1617,26 @@ function applySpeak(on,save){
 }
 $("speakBtn").addEventListener("click",()=>applySpeak(!speakOn,true));
 applySpeak(true,false);
-/* Which section auto-expands: the first dictionary in the user's own order
-   that has a result (D142, and the default since D144), or the one that
-   ANSWERS first (D73, now the opt-out). Stored as `fastFirst`, so an absent
-   key is the default here too.
+/* Which sections auto-expand: the first `openN` dictionaries in the user's
+   own order that have a result (D142; 1, the default since D144), all of them
+   (`openAll`), or the single one that ANSWERS first (D73, `fastFirst`). Three
+   fields so that each one's absent key is its default; the menu sets all
+   three at once, so no contradictory mix can build up.
    Server state like the two above, not localStorage: it is a reading habit,
    not a property of this browser, so it follows the person across ports and
    hosts. /api/search never learns of it — which section a reader unfolds is a
    property of the reader, not of the answer. */
-let orderFirst=true;
-function applyOpenOrder(on,save){
-  const v=!!on,moved=v!==orderFirst;
-  orderFirst=v;
-  for(const [id,want] of [["openFast",false],["openOrder",true]])
-    $(id).setAttribute("aria-pressed",v===want?"true":"false");
+let orderFirst=true,openN=1,openAll=false;
+const openValue=()=>!orderFirst?"fast":openAll?"all":String(openN);
+function applyOpen(v,save){
+  const before=openValue(),n=parseInt(v,10);
+  orderFirst=v!=="fast";openAll=v==="all";openN=n>1?n:1;
+  const sel=$("openSel"),now=openValue();
+  // a count set by hand in state.json: shown as its own choice, before All,
+  // rather than leaving the select blank
+  if(![...sel.options].some(o=>o.value===now))sel.add(new Option(now,now),sel.options[sel.length-1]);
+  sel.value=now;
+  const moved=now!==before;
   if(save&&moved)savePrefs();
   return moved;
 }
@@ -1648,11 +1713,10 @@ function renderGroupSeg(fs){
    until the next query reads as broken — and pressing the half that is already
    in force is not a change, so it must not throw the answer away and rebuild
    it identically. */
-for(const [id,want] of [["openFast",false],["openOrder",true]])
-  $(id).addEventListener("click",()=>{
-    if(applyOpenOrder(want,true)&&$("q").value.trim())doSearch();
-  });
-applyOpenOrder(true,false);
+$("openSel").addEventListener("change",e=>{
+  if(applyOpen(e.target.value,true)&&$("q").value.trim())doSearch();
+});
+applyOpen("1",false);
 for(const [id,step] of [["fsDown",-1],["fsUp",1],["fsVal",0]])
   $(id).addEventListener("click",()=>applyFS(step?articleFS+step:FS_DEF,true));
 applyFS(FS_DEF,false);   // paints --wd-fs and the .lim state before any load
@@ -1723,13 +1787,13 @@ async function loadUserCSS(){
   }catch(e){console.warn("could not load custom article CSS:",e)}
 }
 
-/* Expand all results — a view toggle that is deliberately NOT remembered.
+/* Open all results — a view toggle that is deliberately NOT remembered.
    It lives for the page and nothing else: no localStorage, no state.json.
    Persisting it would mean enabling it once on a wide screen and meeting an
    inexplicably different app on a laptop three weeks later, with nothing on
    screen to explain why. Reloading always returns to the default, which stays
-   "open the top-preference dictionary" — that is what gets you reading with no
-   scrolling, and it is right for almost every search.
+   the reader's own "Open" choice in the panel, which IS remembered and works
+   at every width; this button is for one deep look at one answer.
    A toggle rather than a one-shot action because the two directions are
    symmetric: expanding is one click, and collapsing again by hand would be
    one click per dictionary. */
@@ -1737,7 +1801,7 @@ let expandAll=false;
 function applyExpand(){
   const b=$("expandBtn");
   b.textContent=expandAll?"⊟":"⊞";
-  b.title=expandAll?"Collapse all results":"Expand all results";
+  b.title=expandAll?"Close all results":"Open all results";
   b.setAttribute("aria-label",b.title);
   b.setAttribute("aria-pressed",expandAll?"true":"false");
   b.style.color=expandAll?"var(--accent)":"";
@@ -2263,7 +2327,7 @@ $("dict").onchange=e=>{const v=e.target.value;localStorage.setItem("wudict_dict"
 /* Mode re-runs the search on change, symmetric with #dict: the narrow bar has
    no submit button, so a mode that waited for the next submit would appear to
    do nothing at all. */
-$("mode").onchange=()=>{syncChips();if($("q").value.trim())doSearch()};
+$("mode").onchange=()=>{modePref=$("mode").value;savePrefs();syncChips();if($("q").value.trim())doSearch()};
 syncChips(); // the markup ships empty chips; JS stays the single authority
 
 /* provenance: the collapsed line says where the dictionary came from (its
@@ -3819,35 +3883,44 @@ async function doSearch(ev){
      hit whatever it said; `ready[i]` holds its <details> only if it actually
      produced RESULTS, so a deferred, errored or skipped section can never be
      the one that opens. `frontier` is the lowest index still unheard from. */
-  let resolved=[],ready=[],frontier=0;
+  /* `limit` is how many sections this generation may open by itself (the
+     reader's "Open" choice, fixed on `begin`); `opened` counts them. */
+  let resolved=[],ready=[],frontier=0,limit=1,opened=0;
   const openSlot=i=>{
     const det=ready[i];
-    if(!det)return false;
+    if(!det||det.open)return false;
     det.open=true;fillSection(det);openedIdx=i;promote(boxes,i);
-    clearTimeout(barrier);barrier=null;
+    // The hold ends when the count is reached, not at the first open: until
+    // then the frontier keeps the later sections in the reader's order.
+    if(++opened>=limit){clearTimeout(barrier);barrier=null}
+    // The walk and the jump to the first mark belong to the FIRST section
+    // only: repeated for a second one they would pull the reader away from it.
+    if(opened>1)return true;
     if(markedAnswer)navAttach(det);
     // Not deferred to a frame: it observes its own timing, because the section
     // it was just handed is not laid out yet.
     if(commit&&mode==="fts"&&hlOn&&!anchorOnce)revealFirstMark(det);
     return true;
   };
-  /* Both strategies, one function — which is why they cannot drift apart. In
-     "My order" (the default) the hold walks the prefix and stops at the first
-     slot that has not spoken; once the deadline has passed (barrier===null) or
-     the prefix is exhausted it falls through to the walk at the bottom and
-     takes the best answer in hand. In "Fastest" `barrier` is always null, so
-     that walk runs from the first hit, where `ready` holds exactly one entry:
-     that one opens, which is byte-for-byte what this app did before D142. */
+  /* All strategies, one function — which is why they cannot drift apart. In
+     "My order" (every count) the hold walks the prefix, opening what has a
+     result, and stops at the first slot that has not spoken; once the
+     deadline has passed (barrier===null) or the prefix is exhausted it falls
+     through to the walk at the bottom and takes the best answers in hand. In
+     "Fastest" `barrier` is always null and `limit` is 1, so that walk runs
+     from the first hit, where `ready` holds exactly one entry: that one
+     opens, which is byte-for-byte what this app did before D142. */
   const settle=()=>{
-    if(expandAll||openedIdx!==null)return; // latched, or the user decided (-1)
+    // the count is reached, or the user decided (-1)
+    if(expandAll||openedIdx===-1||opened>=limit)return;
     if(orderFirst&&barrier!==null&&frontier<boxes.length){
       while(frontier<boxes.length&&resolved[frontier]){
-        if(openSlot(frontier))return;
+        if(openSlot(frontier)&&opened>=limit)return;
         frontier++;
       }
       return;
     }
-    for(let i=0;i<boxes.length;i++)if(openSlot(i))return;
+    for(let i=0;i<boxes.length&&opened<limit;i++)openSlot(i);
   };
   // Not part of `anyShown`: these are the dictionaries that were NOT searched,
   // and the empty state below has to be able to tell the difference.
@@ -3864,6 +3937,7 @@ async function doSearch(ev){
         boxes=(msg.slots||[]).map(()=>{const b=document.createElement("div");out.appendChild(b);return b});
         openedIdx=null; // re-arm the latch: a new generation, a new decision
         resolved=boxes.map(()=>false);ready=boxes.map(()=>null);frontier=0;
+        limit=!orderFirst?1:openAll?Infinity:openN;opened=0;
         clearTimeout(barrier);barrier=null;
         // Only where it can bite: one slot satisfies any prefix immediately,
         // and under expand-all there is no latch to hold back.
@@ -3881,9 +3955,10 @@ async function doSearch(ev){
         if(res.noIndex){noIdx=noIndexRow(noIdx,out,res.noIndex);noIdxCount++}
         else if(res.shown)anyShown=true;
         if(res.results)anyResults=true;
-        /* The latch (D73/M3). ONE section opens itself per generation and it
-           is never taken back: a dictionary that finishes later fills its own
-           position, above, and stays shut.
+        /* The latch (D73/M3). Up to `limit` sections open themselves per
+           generation (one unless the reader chose more) and none is taken
+           back: a dictionary that finishes later fills its own position and
+           stays shut.
 
            Promoting a higher-ranked latecomer would close the section being
            read — a definition would appear, be read into, and vanish under the
@@ -4746,7 +4821,11 @@ function linkNamesOne(){
 function applyURL(){
   const p=new URLSearchParams(location.search);
   if(p.get("theme")){localStorage.setItem("wudict_theme",p.get("theme"));applyTheme(p.get("theme"))}
-  if(p.get("mode"))$("mode").value=p.get("mode");
+  // A word handed over with no usable mode (another app, the Android popup,
+  // the extension, a bookmark) is a headword lookup, as a followed link is in
+  // searchFor: a remembered full-text mode does not apply to it. The page's
+  // own addresses always carry the mode.
+  if(!setMode(p.get("mode"))&&p.get("q")&&$("mode").value==="fts")setMode("prefix");
   if(p.get("dict"))selectDict(p.get("dict"));
   syncChips();
   if(p.get("q")){$("q").value=p.get("q");scopeOnce=p.get("from")||null;commitOnce=true;doSearch()}
@@ -4778,7 +4857,7 @@ doSearch=function(ev){
    recorded — the browser already moved the cursor within the stack. */
 window.addEventListener("popstate",()=>{
   const p=new URLSearchParams(location.search);
-  if(p.get("mode"))$("mode").value=p.get("mode");
+  if(p.get("mode"))setMode(p.get("mode"));
   if(p.get("dict"))selectDict(p.get("dict"));
   syncChips();
   const q=p.get("q")||"";

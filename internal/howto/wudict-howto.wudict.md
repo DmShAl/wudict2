@@ -46,7 +46,7 @@ Type `wudict help` in the search box for quick access, and [browse](/browse?dict
 | <kbd>All dictionaries</kbd> | search everything, a specific dictionary, a language or language pair, a publisher |
 | <kbd>◐</kbd> | theme: light, dark, automatic |
 | <kbd>⇔</kbd> | wide layout |
-| <kbd>⊞</kbd> | expand every result |
+| <kbd>⊞</kbd> | open all results |
 | <kbd>☰</kbd> | the [panel](<entry://wudict panel>): your dictionaries and settings |
 
 ### Quick Start
@@ -60,7 +60,7 @@ Type `wudict help` in the search box for quick access, and [browse](/browse?dict
 
 Open the dictionary panel <kbd>☰</kbd> to:
 
-- **Open first**: <kbd>My order</kbd> opens the first dictionary in your list that has a result; <kbd>Fastest</kbd> opens the dictionary that was the fastest to return a result.
+- **Open** sets the number of dictionaries that open automatically. They open in the sequence of your list and only when they have a result. <kbd>1, first to show a result</kbd> opens the dictionary that shows a result first. <kbd>All</kbd> opens all dictionaries that have a result; many open dictionaries can make the page slow.
 - **Sort dictionaries** controls the order used in the dictionary combobox, <kbd>Alphabetical</kbd> or <kbd>My order</kbd>.
 - **Text size**: <kbd>−</kbd> <kbd>15px</kbd> <kbd>+</kbd> at the top of the panel; click the number to reset.
 - ![](rescan.svg) <kbd>Rescan folders</kbd> can be used to refresh the dictionary folders after adding or removing items.
@@ -79,6 +79,8 @@ More: [search](<entry://wudict search>) · [full-text](<entry://wudict full-text
 | **exact** | the headword itself | you know the word |
 | **contains** | your text anywhere in a headword | you know the middle |
 | **full-text** | words inside article text, best first | you remember the meaning, not the word |
+
+wudict keeps the mode that you select. A word from a link or from a different app does not use full-text: wudict uses prefix for that word.
 
 [base form lemmas](<entry://wudict lemmatization>) let you find **know** by typing *knew*.
 
@@ -143,7 +145,7 @@ Each language is a small download (33 kB to 2.5 MB) and is used only for diction
 
 - ![](highlight.svg) <kbd>Highlight matches</kbd>: mark the words a [full-text](<entry://wudict full-text>) search found.
 - ![](speak.svg) <kbd>Read aloud</kbd>: select text in an article to speak it using the OS's Text-to-speech engine. You can pick your preferred voice via the chevron next to the speaker icon (when the OS provides multiple voices for the detected language), see more details under [wudict Text-to-speech](<entry://wudict Text-to-speech>)
-- **Open first**, **Sort dictionaries**: see [wudict welcome](<entry://wudict welcome>).
+- **Open**, **Sort dictionaries**: see [wudict welcome](<entry://wudict welcome>).
 - **Group by**: which groups the dictionary picker offers (language, language pair, content, publisher). [Edit groups](/groups) changes them or adds your own: one line per group, `MyGroup = text, other text`, and a dictionary joins it when one of the texts is anywhere in its title or file name. Between backticks, a regular expression: `` MyGroup = `^the\b` ``.
 
 ***
