@@ -150,7 +150,7 @@ func TestDumpEntriesPrepared(t *testing.T) {
 	}
 	out := filepath.Join(t.TempDir(), "dump")
 	csvPath := filepath.Join(out, dumpBase(dbPath)+".csv")
-	n, err := dumpEntries(dbPath, out, csvPath)
+	n, _, err := dumpEntries(dbPath, out, csvPath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -196,6 +196,33 @@ func TestDumpEntriesPrepared(t *testing.T) {
 	}
 }
 
+// An entry without a headword is left out of the CSV and counted, so the
+// command can say so; an empty first headword drops the entry with its
+// alternates, as pyglossary's reader would.
+func TestDumpEntriesNameless(t *testing.T) {
+	dict.RegisterReader(".namelesstest", func(string) (dict.Reader, error) {
+		return &fakeReader{meta: dict.Meta{Name: "N"}, entries: []dict.Entry{
+			{Headwords: []string{"a"}, Body: "x", Kind: dict.BodyText},
+			{Headwords: nil, Body: "y", Kind: dict.BodyText},
+			{Headwords: []string{"", "alt"}, Body: "z", Kind: dict.BodyText},
+			{Headwords: []string{"b"}, Body: "w", Kind: dict.BodyText},
+		}}, nil
+	})
+	dir := t.TempDir()
+	src := filepath.Join(dir, "n.namelesstest")
+	if err := os.WriteFile(src, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	out := filepath.Join(dir, "out")
+	n, nameless, err := dumpEntries(src, out, filepath.Join(out, "n.csv"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != 2 || nameless != 2 {
+		t.Errorf("wrote %d, left out %d; want 2 and 2", n, nameless)
+	}
+}
+
 // A source that cannot be read must leave no output folder behind: the folder
 // is created only after the dictionary has opened.
 func TestDumpEntriesNoOutputOnFailure(t *testing.T) {
@@ -205,7 +232,7 @@ func TestDumpEntriesNoOutputOnFailure(t *testing.T) {
 		t.Fatal(err)
 	}
 	out := filepath.Join(dir, "out")
-	if _, err := dumpEntries(src, out, filepath.Join(out, "broken.csv")); err == nil {
+	if _, _, err := dumpEntries(src, out, filepath.Join(out, "broken.csv")); err == nil {
 		t.Fatal("dumping an unreadable file succeeded")
 	}
 	if _, err := os.Stat(out); !os.IsNotExist(err) {
@@ -269,7 +296,7 @@ func TestDumpEntriesPreparedNeverBword(t *testing.T) {
 	}
 	out := filepath.Join(t.TempDir(), "dump")
 	csvPath := filepath.Join(out, "B.csv")
-	if _, err := dumpEntries(dbPath, out, csvPath); err != nil {
+	if _, _, err := dumpEntries(dbPath, out, csvPath); err != nil {
 		t.Fatal(err)
 	}
 	b, err := os.ReadFile(csvPath)

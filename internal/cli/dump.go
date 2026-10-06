@@ -126,20 +126,15 @@ func cmdDump(args []string) error {
 			return err
 		}
 		n = r.articles
-		for _, c := range []struct {
-			n    int
-			what string
-		}{
-			{r.empty, "article with an empty body left out"},
-			{r.nameless, "entry without a headword left out"},
-			{r.repaired, "name or header value repaired (control characters, invalid UTF-8)"},
-		} {
-			if c.n > 0 {
-				fmt.Fprintf(os.Stderr, "  %d %s\n", c.n, c.what)
-			}
+		dumpNote(r.empty, "article with an empty body SKIPPED")
+		dumpNote(r.nameless, "entry without a headword SKIPPED")
+		dumpNote(r.repaired, "name or header value repaired (control characters, invalid UTF-8)")
+	} else {
+		var nameless int
+		if n, nameless, err = dumpEntries(src, out, path); err != nil {
+			return err
 		}
-	} else if n, err = dumpEntries(src, out, path); err != nil {
-		return err
+		dumpNote(nameless, "entry without a headword SKIPPED")
 	}
 	size, _ := fileSize(path)
 	fmt.Printf("%s → %s (%s)\n", logx.Plural(n, "entry", "entries"), path, logx.Size(size))
@@ -152,6 +147,13 @@ func cmdDump(args []string) error {
 		fmt.Printf("%s → %s (%s)\n", logx.Plural(files, "resource", "resources"), resDir, logx.Size(bytes))
 	}
 	return nil
+}
+
+// dumpNote reports, when n > 0, what the dump changed on the way out.
+func dumpNote(n int, what string) {
+	if n > 0 {
+		fmt.Fprintf(os.Stderr, "  %d %s\n", n, what)
+	}
 }
 
 // resScope is which resources a dump writes (-resources).
@@ -208,9 +210,10 @@ func dumpBase(src string) string {
 // dictionary has no Reader - it IS the index - and is streamed from its own
 // tables instead.
 //
-// The source is opened BEFORE the output folder is created, so a dictionary
-// that cannot be read leaves nothing behind.
-func dumpEntries(src, outDir, csvPath string) (int, error) {
+// It returns the rows written and the entries left out for having no
+// headword. The source is opened BEFORE the output folder is created, so a
+// dictionary that cannot be read leaves nothing behind.
+func dumpEntries(src, outDir, csvPath string) (n, nameless int, err error) {
 	var meta dict.Meta
 	var each func(row func([]string, string) error) error
 	var closeSrc func() error
@@ -218,7 +221,7 @@ func dumpEntries(src, outDir, csvPath string) (int, error) {
 	if store.IsTextDB(src) {
 		s, err := store.Open(src)
 		if err != nil {
-			return 0, err
+			return 0, 0, err
 		}
 		meta, closeSrc = s.Meta(), s.Close
 		each = func(row func([]string, string) error) error {
@@ -229,7 +232,7 @@ func dumpEntries(src, outDir, csvPath string) (int, error) {
 	} else {
 		r, err := dict.OpenReader(src)
 		if err != nil {
-			return 0, err
+			return 0, 0, err
 		}
 		meta, closeSrc = r.Meta(), r.Close
 		each = func(row func([]string, string) error) error { return readAll(r, row) }
@@ -237,21 +240,21 @@ func dumpEntries(src, outDir, csvPath string) (int, error) {
 	defer closeSrc()
 
 	if err := os.MkdirAll(outDir, 0o755); err != nil {
-		return 0, err
+		return 0, 0, err
 	}
 	f, err := os.Create(csvPath)
 	if err != nil {
-		return 0, err
+		return 0, 0, err
 	}
 	defer f.Close()
 	w := csv.NewWriter(f) // buffered internally
 
-	n := 0
 	m := newMeter("entries", meta.EntryCount, entryEvery)
 	defer m.Clear()
 	row := func(words []string, body string) error {
 		m.Add(1)
 		if len(words) == 0 || words[0] == "" {
+			nameless++
 			return nil // a row pyglossary would drop: never written
 		}
 		rec := []string{words[0], body}
@@ -265,16 +268,16 @@ func dumpEntries(src, outDir, csvPath string) (int, error) {
 	}
 
 	if err := writeInfoRows(w, meta); err != nil {
-		return n, err
+		return n, nameless, err
 	}
 	if err := each(row); err != nil {
-		return n, err
+		return n, nameless, err
 	}
 	w.Flush()
 	if err := w.Error(); err != nil {
-		return n, err
+		return n, nameless, err
 	}
-	return n, f.Close()
+	return n, nameless, f.Close()
 }
 
 // readAll drains a format Reader into row(), rendering each body exactly as an
