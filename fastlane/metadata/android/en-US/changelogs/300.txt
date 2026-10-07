@@ -7,6 +7,5 @@
 • Improved support for incorrect DSL markup
 • Fixed dictionary sharing and Wudict links
 • Fixed reindexing for DSL dictionaries
-• Improved Windows file and folder handling (desktop version only)
 • Improved caching for unchanged data
 • Updated pages, labels, and documentation 
