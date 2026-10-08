@@ -64,7 +64,7 @@ For problems, see [Troubleshooting](troubleshooting.md).
     ~/.wudict/
       wudict.toml     settings
       state.json      dictionary order, enabled dictionaries, display preferences
-      groups.ini      picker groups, once edited
+      groups.ini      picker groups, only created after manually edited
       style/          custom styles
       lemmas/         installed lemma data
       db/             the library; db/spxcache/ holds converted Speex audio
@@ -73,19 +73,13 @@ For problems, see [Troubleshooting](troubleshooting.md).
 
     Windows and Android: [Configuration → Files](../reference/configuration.md#files).
 
-??? question "Can I move a dictionary to another machine?"
-
-    Yes. Copy its library folder, e.g. `~/.wudict/db/Oxford`, into the other
-    machine's library or one of its dictionary folders. The dictionary files are
-    not needed; images and audio come from `media.db` if the media pack was
-    added. See [The library](../dictionaries/library.md#move-a-dictionary-to-another-machine).
-
 ??? question "How do I update wudict?"
 
     Replace the executable, or run the new installer, `wuDict.app` or APK over
     the old one. Settings and the library are kept. Indexes built by an older
     version are reported as [outdated](../dictionaries/library.md#outdated-indexes)
-    and rebuilt with <kbd>Rebuild</kbd> or `wudict reindex`.
+    and rebuilt with <kbd>Rebuild</kbd> or `wudict reindex`. 
+    Use [Obtainium](https://obtainium.imranr.dev/) to automatically update the Android FOSS version of wudict. 
 
 ??? question "How do I free the disk space an index uses?"
 
