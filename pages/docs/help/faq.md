@@ -262,7 +262,7 @@ For problems, see [Troubleshooting](troubleshooting.md).
 
 ??? question "Can I use wudict in Termux?"
 
-    Yes. Build wudict from the source code in
+    Yes, you can build wudict from the source code in
     [Termux](https://termux.dev). The server and all commands work, as on a
     desktop.
 
@@ -375,7 +375,7 @@ For problems, see [Troubleshooting](troubleshooting.md).
     named by the code (`es/`). English is assumed when nothing else is found.
     See [language detection](../reference/configuration.md#lemmatization).
 
-??? question "What's the difference and between -cgo or -purego flavours and which should I use?"
+??? question "What's the difference between -cgo and -purego flavours and which should I choose?"
 
     Prefer `-cgo` for platform where it is available: you get a faster SQLite engine, and the built-in Speex decoder.
     `-purego` is the fallback mode for environments where C-code cannot be compiled; A `-purego` build needs the external command line `speexdec` utility for Speex audio decoding.
