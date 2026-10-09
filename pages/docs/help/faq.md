@@ -111,12 +111,19 @@ For problems, see [Troubleshooting](troubleshooting.md).
 
     [Android app](../apps/android.md)
 
-??? question "What's the difference between Android FOSS build vs Google Play build?"
+??? question "What's the difference between the Android FOSS build and the Google Play build?"
 
-    **Short answer.** Both versions are built from the same open-source repository. Search,
-    lookup and indexing are the same. The builds are different in the way they access your dictionary files. 
-    Use the FOSS build if you want to freely access dictionary folders in your device storage in whatever folder you indicate. 
-    Use the Google Play if you need automatic updates and if you are concerned about granting full disk access to wudict. You can still select specific folders to import from, but a different mechanism is used (the scoped storage introduced by Android in API 30). A limitation of the play storage version is that all wudict data is located under  `/sdcard/Android/data/com.legbehindneck.wudict/files/Dictionaries` and in recent versions of Android this folder is not easily accessible from a file manager.
+    **Short answer.** Both builds are compiled from the same open-source repository and provide the same search, lookup, and indexing functionality. The primary difference is how they access dictionary files.
+    
+    **FOSS build.** Choose this build if you need unrestricted access to dictionary files in device storage. It allows you to select dictionary folders from locations of your choice, subject to Android's storage permissions and restrictions.
+    
+    **Google Play build.** Choose this build if you prefer distribution through Google Play and automatic app updates, or if you want to avoid granting the app broad storage access. It uses Android's Storage Access Framework (SAF), which lets you grant access to specific folders without granting general access to device storage.
+    
+    The Google Play build stores its app-managed dictionary data in:
+    
+    `/sdcard/Android/data/com.legbehindneck.wudict/files/Dictionaries`
+    
+    On recent Android versions, this directory is generally inaccessible through standard file managers. This can make it more difficult to manage or transfer dictionary files manually.
 
     **Differences.**
 
